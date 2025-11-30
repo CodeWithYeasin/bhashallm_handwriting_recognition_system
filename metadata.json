@@ -1,0 +1,8 @@
+{
+  "name": "BhashaLLM",
+  "description": "Advanced AI-powered handwriting recognition system capable of analyzing sketches, uploads, and camera input.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
