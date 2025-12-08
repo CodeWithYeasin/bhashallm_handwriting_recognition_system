@@ -104,8 +104,18 @@ const App: React.FC = () => {
       });
       setResult(data);
       setStep('CHAT'); // Automatic transition to Chat
-    } catch (error) {
+    } catch (error: any) {
       console.error("Analysis failed", error);
+      // Set error result so user can see what went wrong
+      setResult({
+        recognizedText: error?.message || "Analysis failed. Check console for details.",
+        confidence: 0,
+        isQuestion: false,
+        bhashaInsights: [],
+        suggestedQuestions: [],
+        candidates: [],
+        processingTimeMs: 0,
+      });
     } finally {
       setIsLoading(false);
     }

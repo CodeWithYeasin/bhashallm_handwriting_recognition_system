@@ -60,13 +60,27 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
   });
   
   try {
-    const apiKey = process.env.API_KEY;
+    // Try multiple possible environment variable names
+    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    
+    console.log("analyzeHandwriting: Checking API Key", {
+      hasAPI_KEY: !!process.env.API_KEY,
+      hasGEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+      hasViteAPI_KEY: !!(import.meta as any).env?.VITE_API_KEY,
+      hasViteGeminiAPI_KEY: !!(import.meta as any).env?.VITE_GEMINI_API_KEY,
+      finalApiKeyExists: !!apiKey,
+      apiKeyLength: apiKey?.length || 0
+    });
+    
     if (!apiKey) {
-      console.error("analyzeHandwriting: API Key not found");
-      throw new Error("API Key not found");
+      console.error("analyzeHandwriting: API Key not found in any environment variable");
+      console.error("Please set GEMINI_API_KEY in your .env file");
+      throw new Error("API Key not found. Please set GEMINI_API_KEY in your .env file");
     }
 
-    console.log("analyzeHandwriting: API Key found, initializing GoogleGenAI");
+    console.log("analyzeHandwriting: API Key found, initializing GoogleGenAI", {
+      apiKeyPreview: apiKey.substring(0, 10) + "..."
+    });
     const ai = new GoogleGenAI({ apiKey });
 
     // Clean base64 string if it contains metadata header
@@ -122,38 +136,54 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
     - **REQUIRED**: The bhashaInsights array MUST contain exactly 3 items for valid Bengali text, regardless of length.
     `;
 
-    console.log("analyzeHandwriting: Sending request to Gemini API...");
-    const response = await ai.models.generateContent({
+    console.log("analyzeHandwriting: Sending request to Gemini API...", {
       model: "gemini-2.5-flash",
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: recognitionSchema,
-        systemInstruction: systemInstruction,
-      },
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: "image/png",
-              data: cleanBase64,
+      imageDataLength: cleanBase64.length,
+      hasApiKey: !!apiKey
+    });
+    
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: recognitionSchema,
+          systemInstruction: systemInstruction,
+        },
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: cleanBase64,
+              },
             },
-          },
-          {
-            text: `Analyze this handwriting. IMPORTANT: 
+            {
+              text: `Analyze this handwriting. IMPORTANT: 
 1. Only recognize Bengali text. If the text contains any non-Bengali characters (English, numbers, symbols), return empty recognizedText and empty arrays for bhashaInsights and suggestedQuestions. 
 2. Only provide poet responses if the text is 100% Bengali.
 3. **CRITICAL FOR LONG TEXTS**: If the recognized text is long, you MUST still generate complete poet responses. Long texts require MORE detailed analysis, not less. Always return exactly 3 poet insights in bhashaInsights array for valid Bengali text, regardless of text length.
 4. Ensure all poet responses are comprehensive and address the full meaning of the text, especially for longer passages.`,
-          },
-        ],
-      },
-    });
-    
-    console.log("analyzeHandwriting: Gemini API response received", {
-      hasResponse: !!response,
-      hasText: !!response.text,
-      responseLength: response.text?.length || 0
-    });
+            },
+          ],
+        },
+      });
+      
+      console.log("analyzeHandwriting: Gemini API response received", {
+        hasResponse: !!response,
+        hasText: !!response.text,
+        responseLength: response.text?.length || 0
+      });
+    } catch (apiError: any) {
+      console.error("analyzeHandwriting: Gemini API call failed", {
+        error: apiError?.message,
+        name: apiError?.name,
+        code: apiError?.code,
+        status: apiError?.status
+      });
+      throw apiError;
+    }
 
     const endTime = performance.now();
     const processingTime = Math.round(endTime - startTime);
@@ -206,25 +236,37 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
     } else {
       throw new Error("No response text generated");
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Analysis Failed:", error);
-    // Fallback/Error result
+    console.error("Error details:", {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack?.substring(0, 200)
+    });
+    
+    // Return more detailed error information
+    const errorMessage = error?.message || "Unknown error";
     return {
-      recognizedText: "Error",
+      recognizedText: errorMessage.includes("API Key") ? "API Key Error: Check .env file" : `Error: ${errorMessage}`,
       confidence: 0,
       isQuestion: false,
       bhashaInsights: [],
       suggestedQuestions: [],
       candidates: [],
-      processingTimeMs: 0,
+      processingTimeMs: Math.round(performance.now() - startTime),
     };
   }
 };
 
 export const chatWithBhasha = async (history: ChatMessage[], contextText: string, persona: ChatPersona = 'tutor'): Promise<string> => {
   try {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API Key not found");
+    // Try multiple possible environment variable names
+    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    
+    if (!apiKey) {
+      console.error("chatWithBhasha: API Key not found");
+      throw new Error("API Key not found. Please set GEMINI_API_KEY in your .env file");
+    }
 
     // Get the last user message
     const lastUserMessage = history.filter(msg => msg.role === 'user').pop()?.content || "";
