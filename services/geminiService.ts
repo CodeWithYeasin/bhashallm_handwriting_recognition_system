@@ -206,19 +206,28 @@ export const chatWithBhasha = async (history: ChatMessage[], contextText: string
     const apiKey = process.env.API_KEY;
     if (!apiKey) throw new Error("API Key not found");
 
-    // Validate that contextText is Bengali
-    const isContextBengali = contextText && /^[\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]+$/.test(contextText.trim());
-    
     // Get the last user message
     const lastUserMessage = history.filter(msg => msg.role === 'user').pop()?.content || "";
     const isLastMessageBengali = lastUserMessage && /^[\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]+$/.test(lastUserMessage.trim());
     
-    // If context or last message is not Bengali, reject the request
-    if (!isContextBengali || (!isLastMessageBengali && lastUserMessage.trim())) {
+    // Validate contextText if it exists (it may be empty for general questions)
+    const isContextBengali = !contextText || /^[\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]+$/.test(contextText.trim());
+    
+    // If user message is not Bengali (and not empty), reject the request
+    // Allow responses even if contextText is empty or not Bengali, as long as the user message is Bengali
+    if (lastUserMessage.trim() && !isLastMessageBengali) {
       return "দুঃখিত, এই সিস্টেম শুধুমাত্র বাংলা পাঠ্য গ্রহণ করে। অনুগ্রহ করে বাংলায় আপনার প্রশ্ন বা মন্তব্য লিখুন। (Sorry, this system only accepts Bengali text. Please write your question or comment in Bengali.)";
+    }
+    
+    // If contextText exists but is not Bengali, warn but still allow if user message is Bengali
+    if (contextText && !isContextBengali && isLastMessageBengali) {
+      console.warn("Context text is not Bengali, but proceeding with Bengali user message");
     }
 
     const ai = new GoogleGenAI({ apiKey });
+
+    // Check if we have context text
+    const hasContextText = contextText && contextText.trim();
 
     // Format history for the prompt
     const conversationHistory = history.map(msg => 
@@ -230,7 +239,7 @@ export const chatWithBhasha = async (history: ChatMessage[], contextText: string
       tutor: {
         role: "Bengali Language Teacher",
         tone: "Educational, objective, and friendly. Act as a modern AI tutor.",
-        instruction: "Explain the text clearly, grammatically, and conceptually. If asked about poets, explain objectively. ONLY respond to Bengali text."
+        instruction: `Explain the text clearly, grammatically, and conceptually. ${hasContextText ? `You MUST provide a comprehensive literary review of the recognized text, including: meaning analysis, grammatical structure, themes, and educational insights. This is MANDATORY when recognized text is provided.` : ''} If asked about poets, explain objectively. ONLY respond to Bengali text.`
       },
       analyst: {
         role: "Formal Document Analyst",
@@ -246,8 +255,15 @@ export const chatWithBhasha = async (history: ChatMessage[], contextText: string
 
    const currentPersona = personaConfig[persona];
 
+    // Build context part of prompt
+    const contextPart = hasContextText
+      ? `**RECOGNIZED TEXT FROM IMAGE**: "${contextText}"
+
+This is the Bengali text that was recognized from the user's uploaded image. You MUST analyze this text and provide insights about it.`
+      : "Context: The user is asking a general question. There is no specific recognized text from an image at this moment.";
+    
     const prompt = `
-    Context: The user previously uploaded an image containing Bengali text: "${contextText}".
+    ${contextPart}
     
     Conversation History:
     ${conversationHistory}
@@ -260,14 +276,18 @@ export const chatWithBhasha = async (history: ChatMessage[], contextText: string
     1. ${currentPersona.instruction}
     2. **Tone**: ${currentPersona.tone}
     3. DO NOT use the "3 Poets" format in this chat. That is for the analysis panel only. Be conversational.
-    4. **ONLY respond if the user's message is in Bengali**. If it's not Bengali, use the rejection message above.
+    4. **ALWAYS respond in Bengali**. If the user's message is in Bengali, provide a helpful response. If not Bengali, use the rejection message above.
+    5. **CRITICAL - LITERARY REVIEW**: ${hasContextText ? `You MUST provide a literary review and analysis of the recognized text: "${contextText}". Analyze its meaning, themes, grammar, and provide educational insights. This is MANDATORY when recognized text is present.` : 'If there\'s no context text, you can still help with general Bengali language questions or explanations.'}
+    6. **IMPORTANT**: You MUST always provide a response. Never leave the user without an answer.
     
     **Language Rules (STRICT):**
     - You MUST respond ONLY in Bengali.
     - If the user writes in any language other than Bengali, reject it with the message above.
     - All your responses must be in Bengali, regardless of what the user writes.
+    - **MANDATORY**: Always provide a meaningful response when the user writes in Bengali, even if there's no context text.
+    ${hasContextText ? `- **MANDATORY**: You MUST analyze and provide insights about the recognized text: "${contextText}"` : ''}
     
-    Keep the response concise (under 100 words) and in Bengali.
+    Keep the response ${hasContextText ? 'comprehensive (150-200 words)' : 'concise (under 100 words)'} and in Bengali. Be helpful and engaging.
     `;
 
     const response = await ai.models.generateContent({
@@ -275,7 +295,15 @@ export const chatWithBhasha = async (history: ChatMessage[], contextText: string
       contents: { text: prompt },
     });
 
-    return response.text || "I am unable to process that request at the moment.";
+    const responseText = response.text?.trim();
+    
+    // Ensure we always return a response
+    if (!responseText || responseText.length === 0) {
+      console.warn("Empty response from Gemini, returning fallback message");
+      return "দুঃখিত, আমি এখনই আপনার প্রশ্নের উত্তর দিতে পারছি না। অনুগ্রহ করে আবার চেষ্টা করুন। (Sorry, I am unable to process your request at the moment. Please try again.)";
+    }
+    
+    return responseText;
 
   } catch (error) {
     console.error("Chat Error:", error);
