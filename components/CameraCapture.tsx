@@ -97,7 +97,12 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
         )}
 
         <button 
-          onClick={startCamera}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startCamera();
+          }}
           className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-colors border border-white/10"
         >
           Retry Connection
@@ -151,7 +156,12 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
       <div className="absolute bottom-6 left-0 right-0 flex justify-center z-20">
         {isReady && (
           <button
-            onClick={handleCapture}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleCapture();
+            }}
             className="group relative flex items-center justify-center w-20 h-20 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md transition-all focus:outline-none border border-white/20 shadow-2xl"
             title="Capture"
           >

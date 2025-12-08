@@ -230,7 +230,12 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
       {/* Visual History Toggle - Positioned at top-24 to avoid overlapping with toolbar (Undo/Redo) */}
       <div className="absolute top-24 right-4 z-20">
         <button
-          onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsHistoryOpen(!isHistoryOpen);
+          }}
           className={`p-2.5 rounded-xl backdrop-blur-md transition-all border shadow-lg ${
             isHistoryOpen 
               ? 'bg-amber-600/20 text-amber-300 border-amber-600/30' 
@@ -252,7 +257,14 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-200/70 flex items-center gap-1">
              <Clock size={10} /> History
            </span>
-           <button onClick={() => setIsHistoryOpen(false)} className="text-amber-200/70 hover:text-amber-50">
+           <button 
+             type="button"
+             onClick={(e) => {
+               e.preventDefault();
+               e.stopPropagation();
+               setIsHistoryOpen(false);
+             }} 
+             className="text-amber-200/70 hover:text-amber-50">
              <ChevronRight size={16} />
            </button>
         </div>
@@ -261,7 +273,12 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
            {historyStack.map((state, idx) => (
              <button
                key={state.id}
-               onClick={() => restoreSnapshot(idx)}
+               type="button"
+               onClick={(e) => {
+                 e.preventDefault();
+                 e.stopPropagation();
+                 restoreSnapshot(idx);
+               }}
                className={`w-full group relative flex flex-col items-center gap-1 p-1 rounded-lg border transition-all ${
                  currentIndex === idx 
                    ? 'bg-white/10 border-amber-600/50 shadow-[0_0_10px_rgba(217,119,6,0.1)]' 

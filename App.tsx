@@ -31,10 +31,29 @@ const App: React.FC = () => {
   const analysisSectionRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLDivElement>(null);
 
+  // Track previous step to only scroll on meaningful transitions
+  const prevStepRef = useRef<AppStep>(step);
+  
   // Scroll to active section when step changes (only for guided phases)
+  // Only scroll when transitioning from INPUT to ANALYSIS or ANALYSIS to CHAT
+  // Don't scroll when just switching input modes or when already in a step
   useEffect(() => {
     const scrollToSection = () => {
-        if (step === 'ALL') return; // Do not auto-scroll in "All Active" mode
+        if (step === 'ALL') {
+          prevStepRef.current = step;
+          return; // Do not auto-scroll in "All Active" mode
+        }
+
+        // Only auto-scroll on meaningful transitions (INPUT -> ANALYSIS -> CHAT)
+        // Don't scroll if we're just switching input modes within INPUT step
+        const shouldScroll = 
+          (prevStepRef.current === 'INPUT' && step === 'ANALYSIS') ||
+          (prevStepRef.current === 'ANALYSIS' && step === 'CHAT');
+
+        if (!shouldScroll) {
+          prevStepRef.current = step;
+          return;
+        }
 
         let ref = inputSectionRef;
         if (step === 'ANALYSIS') ref = analysisSectionRef;
@@ -51,6 +70,8 @@ const App: React.FC = () => {
                 }
             }, 100);
         }
+        
+        prevStepRef.current = step;
     };
     scrollToSection();
   }, [step]);
@@ -105,12 +126,15 @@ const App: React.FC = () => {
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
         setUploadedImage(result);
+        // Only trigger analysis when file is actually selected, not when switching tabs
         handleAnalyze(result);
       };
       reader.readAsDataURL(file);
@@ -131,7 +155,10 @@ const App: React.FC = () => {
   // Helper to determine if a section is active
   const isSectionActive = (section: 'INPUT' | 'ANALYSIS' | 'CHAT') => {
     if (step === 'ALL') return true;
-    if (result && !isLoading) return true; // Keep dashboard active if results are present
+    // Keep INPUT section active when switching between input modes
+    if (section === 'INPUT' && step === 'INPUT') return true;
+    // Keep sections active if results are present (for ANALYSIS and CHAT)
+    if (result && !isLoading && (section === 'ANALYSIS' || section === 'CHAT')) return true;
     return step === section;
   }
 
@@ -215,10 +242,18 @@ const App: React.FC = () => {
                     ].map((tab) => (
                         <button
                         key={tab.id}
-                        onClick={() => {
+                        type="button"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             setInputMode(tab.id);
-                            setResult(null);
                             setUploadedImage(null);
+                            // Only reset result and step if we're switching modes and not in ALL mode
+                            // This allows users to switch between input methods without losing state
+                            if (step !== 'ALL' && !isLoading) {
+                                setResult(null);
+                                setStep('INPUT');
+                            }
                         }}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-xl transition-all relative z-10 ${
                             inputMode === tab.id 
@@ -241,13 +276,23 @@ const App: React.FC = () => {
                         <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
                         <div className="glass-card rounded-xl p-1 pointer-events-auto flex gap-1 shadow-lg">
                             <button 
-                            onClick={() => setTool('pen')}
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setTool('pen');
+                            }}
                             className={`p-2.5 rounded-lg transition-all ${tool === 'pen' ? 'bg-amber-600/20 text-amber-300 ring-1 ring-amber-600/50' : 'text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20'}`}
                             >
                             <PenTool size={18} />
                             </button>
                             <button 
-                            onClick={() => setTool('eraser')}
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setTool('eraser');
+                            }}
                             className={`p-2.5 rounded-lg transition-all ${tool === 'eraser' ? 'bg-amber-800/20 text-amber-300 ring-1 ring-amber-800/50' : 'text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20'}`}
                             >
                             <Eraser size={18} />
@@ -267,14 +312,38 @@ const App: React.FC = () => {
                         </div>
 
                         <div className="glass-card rounded-xl p-1 pointer-events-auto flex gap-1 shadow-lg">
-                            <button onClick={onUndoCanvas} className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" title="Undo">
+                            <button 
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onUndoCanvas();
+                            }} 
+                            className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
+                            title="Undo">
                             <Undo size={18} />
                             </button>
-                            <button onClick={onRedoCanvas} className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" title="Redo">
+                            <button 
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onRedoCanvas();
+                            }} 
+                            className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
+                            title="Redo">
                             <Redo size={18} />
                             </button>
                             <div className="w-px h-6 bg-amber-700/30 my-auto mx-1"></div>
-                            <button onClick={onDownloadCanvas} className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" title="Download">
+                            <button 
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onDownloadCanvas();
+                            }} 
+                            className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
+                            title="Download">
                             <Download size={18} />
                             </button>
                         </div>
@@ -294,13 +363,23 @@ const App: React.FC = () => {
                         {/* Action Footer */}
                         <div className="p-4 pt-0 flex gap-4">
                         <button 
-                            onClick={onClearCanvas}
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onClearCanvas();
+                            }}
                             className="px-5 py-3 text-amber-200/70 hover:text-red-400 hover:bg-red-500/10 rounded-xl text-sm font-medium transition-colors border border-amber-800/20 hover:border-red-500/20"
                         >
                             Clear Board
                         </button>
                         <button 
-                            onClick={onCanvasSubmit}
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onCanvasSubmit();
+                            }}
                             disabled={isLoading}
                             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-white rounded-xl text-sm font-bold tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-900/20 active:scale-[0.98] border border-white/10"
                         >
@@ -323,7 +402,10 @@ const App: React.FC = () => {
                         <div className="relative w-full h-full flex items-center justify-center rounded-2xl border border-white/10 bg-black/20 backdrop-blur overflow-hidden">
                             <img src={uploadedImage} alt="Uploaded" className="max-w-full max-h-full object-contain shadow-2xl" />
                             <button 
-                            onClick={() => { 
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                                 setUploadedImage(null); 
                                 if (fileInputRef.current) fileInputRef.current.value = ''; 
                             }}
@@ -341,7 +423,12 @@ const App: React.FC = () => {
                             <p className="text-amber-200/80 text-sm mb-8">Supports PNG, JPG, or WEBP</p>
                             
                             <button 
-                            onClick={() => fileInputRef.current?.click()}
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                fileInputRef.current?.click();
+                            }}
                             className="px-8 py-3 bg-white text-amber-950 hover:bg-amber-50 rounded-xl font-bold transition-colors shadow-lg shadow-white/10"
                             >
                             Select File
