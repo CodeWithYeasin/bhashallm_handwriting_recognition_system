@@ -33,47 +33,16 @@ const App: React.FC = () => {
 
   // Track previous step to only scroll on meaningful transitions
   const prevStepRef = useRef<AppStep>(step);
+  // Track last analyzed image data to prevent re-analyzing the same image
+  const lastAnalyzedImageRef = useRef<string | null>(null);
   
   // Scroll to active section when step changes (only for guided phases)
   // Only scroll when transitioning from INPUT to ANALYSIS or ANALYSIS to CHAT
   // Don't scroll when just switching input modes or when already in a step
+  // DISABLED: Don't auto-scroll to prevent unwanted scrolling when clicking buttons
   useEffect(() => {
-    const scrollToSection = () => {
-        if (step === 'ALL') {
-          prevStepRef.current = step;
-          return; // Do not auto-scroll in "All Active" mode
-        }
-
-        // Only auto-scroll on meaningful transitions (INPUT -> ANALYSIS -> CHAT)
-        // Don't scroll if we're just switching input modes within INPUT step
-        const shouldScroll = 
-          (prevStepRef.current === 'INPUT' && step === 'ANALYSIS') ||
-          (prevStepRef.current === 'ANALYSIS' && step === 'CHAT');
-
-        if (!shouldScroll) {
-          prevStepRef.current = step;
-          return;
-        }
-
-        let ref = inputSectionRef;
-        if (step === 'ANALYSIS') ref = analysisSectionRef;
-        if (step === 'CHAT') ref = chatSectionRef;
-
-        if (ref.current) {
-            // Add a small delay to ensure rendering is complete and allow for smooth visual transition
-            setTimeout(() => {
-                const yOffset = -140; // Offset for fixed header
-                const element = ref.current;
-                if (element) {
-                    const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
-                    window.scrollTo({ top: y, behavior: 'smooth' });
-                }
-            }, 100);
-        }
-        
-        prevStepRef.current = step;
-    };
-    scrollToSection();
+    // Disable auto-scroll completely - let users control their own scrolling
+    prevStepRef.current = step;
   }, [step]);
 
   const handleAnalyze = async (imageData: string | null) => {
@@ -82,14 +51,30 @@ const App: React.FC = () => {
       return;
     }
     
+    // Only analyze if this is a different image than the last one analyzed
+    // Use a hash of the first and last parts of the image data for quick comparison
+    const imageHash = imageData.length > 100 
+      ? imageData.substring(0, 50) + imageData.substring(imageData.length - 50)
+      : imageData;
+    
+    if (lastAnalyzedImageRef.current === imageHash) {
+      console.log("handleAnalyze: Same image detected, skipping analysis");
+      return; // Don't re-analyze the same image
+    }
+    
     console.log("handleAnalyze: Starting analysis", {
       imageDataLength: imageData.length,
       imageDataType: imageData.substring(0, 30),
       timestamp: new Date().toISOString()
     });
     
-    // Transition to Phase 2: Analysis Active
-    setStep('ANALYSIS');
+    // Mark this image as analyzed
+    lastAnalyzedImageRef.current = imageHash;
+    
+    // Transition to Phase 2: Analysis Active (only if not already in ALL mode)
+    if (step !== 'ALL') {
+      setStep('ANALYSIS');
+    }
     setIsLoading(true);
     setResult(null);
     
@@ -103,7 +88,10 @@ const App: React.FC = () => {
         processingTime: data.processingTimeMs
       });
       setResult(data);
-      setStep('CHAT'); // Automatic transition to Chat
+      // Only transition to CHAT if not already in ALL mode
+      if (step !== 'ALL') {
+        setStep('CHAT');
+      }
     } catch (error: any) {
       console.error("Analysis failed", error);
       // Set error result so user can see what went wrong
@@ -133,7 +121,8 @@ const App: React.FC = () => {
 
   const onClearCanvas = () => {
     canvasRef.current?.clear();
-    setResult(null);
+    // Don't clear result - keep analysis and chat active
+    // Result will only be cleared when a new analysis is performed
   };
 
   const onUndoCanvas = () => {
@@ -319,12 +308,8 @@ const App: React.FC = () => {
                             e.stopPropagation();
                             setInputMode(tab.id);
                             setUploadedImage(null);
-                            // Only reset result and step if we're switching modes and not in ALL mode
-                            // This allows users to switch between input methods without losing state
-                            if (step !== 'ALL' && !isLoading) {
-                                setResult(null);
-                                setStep('INPUT');
-                            }
+                            // Don't reset result or step when switching input modes
+                            // Keep chat and analysis active - only reset on new analysis
                         }}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-xl transition-all relative z-10 ${
                             inputMode === tab.id 
@@ -349,17 +334,27 @@ const App: React.FC = () => {
                             <button 
                             type="button"
                             tabIndex={-1}
-                            onClick={(e) => {
+                            onMouseDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setTool('pen');
-                                // Prevent focus to avoid scrolling
+                                // Immediately blur to prevent focus and scroll
                                 if (e.currentTarget instanceof HTMLElement) {
                                     e.currentTarget.blur();
                                 }
                             }}
-                            onMouseDown={(e) => {
+                            onClick={(e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
+                            }}
+                            onFocus={(e) => {
+                                e.preventDefault();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             className={`p-2.5 rounded-lg transition-all ${tool === 'pen' ? 'bg-amber-600/20 text-amber-300 ring-1 ring-amber-600/50' : 'text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20'}`}
                             >
@@ -368,17 +363,27 @@ const App: React.FC = () => {
                             <button 
                             type="button"
                             tabIndex={-1}
-                            onClick={(e) => {
+                            onMouseDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setTool('eraser');
-                                // Prevent focus to avoid scrolling
+                                // Immediately blur to prevent focus and scroll
                                 if (e.currentTarget instanceof HTMLElement) {
                                     e.currentTarget.blur();
                                 }
                             }}
-                            onMouseDown={(e) => {
+                            onClick={(e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
+                            }}
+                            onFocus={(e) => {
+                                e.preventDefault();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             className={`p-2.5 rounded-lg transition-all ${tool === 'eraser' ? 'bg-amber-800/20 text-amber-300 ring-1 ring-amber-800/50' : 'text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20'}`}
                             >
@@ -394,27 +399,53 @@ const App: React.FC = () => {
                             max="20" 
                             value={brushSize} 
                             tabIndex={-1}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                // Immediately blur to prevent focus and scroll
+                                if (e.target instanceof HTMLElement) {
+                                    e.target.blur();
+                                }
+                            }}
                             onChange={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 const newValue = Number(e.target.value);
                                 setBrushSize(newValue);
+                                // Blur after change
+                                if (e.target instanceof HTMLElement) {
+                                    e.target.blur();
+                                }
                             }}
                             onInput={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 const newValue = Number((e.target as HTMLInputElement).value);
                                 setBrushSize(newValue);
-                            }}
-                            onMouseDown={(e) => {
-                                e.stopPropagation();
+                                // Blur after input
+                                if (e.target instanceof HTMLElement) {
+                                    e.target.blur();
+                                }
                             }}
                             onMouseUp={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
+                                if (e.target instanceof HTMLElement) {
+                                    e.target.blur();
+                                }
                             }}
                             onFocus={(e) => {
-                                e.target.blur();
+                                e.preventDefault();
+                                if (e.target instanceof HTMLElement) {
+                                    e.target.blur();
+                                }
                             }}
                             onClick={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
+                                if (e.target instanceof HTMLElement) {
+                                    e.target.blur();
+                                }
                             }}
                             className="w-24 accent-amber-600 h-1 bg-amber-900/40 rounded-full appearance-none cursor-pointer"
                             />
@@ -424,16 +455,27 @@ const App: React.FC = () => {
                             <button 
                             type="button"
                             tabIndex={-1}
-                            onClick={(e) => {
+                            onMouseDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 onUndoCanvas();
+                                // Immediately blur to prevent focus and scroll
                                 if (e.currentTarget instanceof HTMLElement) {
                                     e.currentTarget.blur();
                                 }
                             }}
-                            onMouseDown={(e) => {
+                            onClick={(e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
+                            }}
+                            onFocus={(e) => {
+                                e.preventDefault();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
                             title="Undo">
@@ -442,16 +484,27 @@ const App: React.FC = () => {
                             <button 
                             type="button"
                             tabIndex={-1}
-                            onClick={(e) => {
+                            onMouseDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 onRedoCanvas();
+                                // Immediately blur to prevent focus and scroll
                                 if (e.currentTarget instanceof HTMLElement) {
                                     e.currentTarget.blur();
                                 }
                             }}
-                            onMouseDown={(e) => {
+                            onClick={(e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
+                            }}
+                            onFocus={(e) => {
+                                e.preventDefault();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
                             title="Redo">
@@ -461,16 +514,27 @@ const App: React.FC = () => {
                             <button 
                             type="button"
                             tabIndex={-1}
-                            onClick={(e) => {
+                            onMouseDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 onDownloadCanvas();
+                                // Immediately blur to prevent focus and scroll
                                 if (e.currentTarget instanceof HTMLElement) {
                                     e.currentTarget.blur();
                                 }
                             }}
-                            onMouseDown={(e) => {
+                            onClick={(e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
+                            }}
+                            onFocus={(e) => {
+                                e.preventDefault();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
                             title="Download">
@@ -501,16 +565,27 @@ const App: React.FC = () => {
                         <button 
                             type="button"
                             tabIndex={-1}
-                            onClick={(e) => {
+                            onMouseDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 onClearCanvas();
+                                // Immediately blur to prevent focus and scroll
                                 if (e.currentTarget instanceof HTMLElement) {
                                     e.currentTarget.blur();
                                 }
                             }}
-                            onMouseDown={(e) => {
+                            onClick={(e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
+                            }}
+                            onFocus={(e) => {
+                                e.preventDefault();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             className="px-5 py-3 text-amber-200/70 hover:text-red-400 hover:bg-red-500/10 rounded-xl text-sm font-medium transition-colors border border-amber-800/20 hover:border-red-500/20"
                         >
@@ -519,18 +594,31 @@ const App: React.FC = () => {
                         <button 
                             type="button"
                             tabIndex={-1}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                // Prevent focus immediately on mousedown
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
+                            }}
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 if (!isLoading) {
                                     onCanvasSubmit();
                                 }
+                                // Ensure blur after click
                                 if (e.currentTarget instanceof HTMLElement) {
                                     e.currentTarget.blur();
                                 }
                             }}
-                            onMouseDown={(e) => {
+                            onFocus={(e) => {
+                                // Immediately remove focus if it somehow gets focused
                                 e.preventDefault();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             disabled={isLoading}
                             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-white rounded-xl text-sm font-bold tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-900/20 active:scale-[0.98] border border-white/10"

@@ -56,15 +56,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
   }, [messages, isLoading, suggestions]);
 
   useEffect(() => {
+    // Only update chat when there's a genuinely NEW contextText (new analysis from new image)
+    // Don't reset if contextText becomes empty - keep existing chat active
     if (contextText && contextText.trim() && contextText !== lastProcessedTextRef.current) {
-      lastProcessedTextRef.current = contextText;
+      const newContextText = contextText;
+      lastProcessedTextRef.current = newContextText;
       // Create a user message that explicitly asks for analysis
-      const analysisRequest = `এই পাঠ্যটি বিশ্লেষণ করুন: "${contextText}"`;
+      const analysisRequest = `এই পাঠ্যটি বিশ্লেষণ করুন: "${newContextText}"`;
       const initialUserMsg: ChatMessage = { role: 'user', content: analysisRequest, timestamp: Date.now() };
+      // Start fresh conversation for new analysis
       setMessages([initialUserMsg]);
       setIsLoading(true);
 
-      chatWithBhasha([initialUserMsg], contextText, persona)
+      chatWithBhasha([initialUserMsg], newContextText, persona)
         .then(responseText => {
           if (responseText && responseText.trim()) {
             setMessages(prev => [...prev, { role: 'model', content: responseText.trim(), timestamp: Date.now() }]);
@@ -86,10 +90,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
           }]);
         })
         .finally(() => setIsLoading(false));
-    } else if (!contextText && lastProcessedTextRef.current) {
-      lastProcessedTextRef.current = '';
-      setMessages([]);
     }
+    // Don't clear messages when contextText becomes empty - keep chat active
     // Only trigger on contextText change, not persona change to prevent freezing
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextText]); 
