@@ -297,15 +297,18 @@ const App: React.FC = () => {
                         <div className="glass-card rounded-xl p-1 pointer-events-auto flex gap-1 shadow-lg">
                             <button 
                             type="button"
+                            tabIndex={-1}
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                e.stopImmediatePropagation();
                                 setTool('pen');
+                                // Prevent focus to avoid scrolling
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             onMouseDown={(e) => {
                                 e.preventDefault();
-                                e.stopPropagation();
                             }}
                             className={`p-2.5 rounded-lg transition-all ${tool === 'pen' ? 'bg-amber-600/20 text-amber-300 ring-1 ring-amber-600/50' : 'text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20'}`}
                             >
@@ -313,15 +316,18 @@ const App: React.FC = () => {
                             </button>
                             <button 
                             type="button"
+                            tabIndex={-1}
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                e.stopImmediatePropagation();
                                 setTool('eraser');
+                                // Prevent focus to avoid scrolling
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             onMouseDown={(e) => {
                                 e.preventDefault();
-                                e.stopPropagation();
                             }}
                             className={`p-2.5 rounded-lg transition-all ${tool === 'eraser' ? 'bg-amber-800/20 text-amber-300 ring-1 ring-amber-800/50' : 'text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20'}`}
                             >
@@ -336,21 +342,27 @@ const App: React.FC = () => {
                             min="2" 
                             max="20" 
                             value={brushSize} 
+                            tabIndex={-1}
                             onChange={(e) => {
-                                e.preventDefault();
                                 e.stopPropagation();
-                                setBrushSize(Number(e.target.value));
+                                const newValue = Number(e.target.value);
+                                setBrushSize(newValue);
+                            }}
+                            onInput={(e) => {
+                                e.stopPropagation();
+                                const newValue = Number((e.target as HTMLInputElement).value);
+                                setBrushSize(newValue);
                             }}
                             onMouseDown={(e) => {
-                                e.preventDefault();
                                 e.stopPropagation();
                             }}
                             onMouseUp={(e) => {
-                                e.preventDefault();
                                 e.stopPropagation();
                             }}
+                            onFocus={(e) => {
+                                e.target.blur();
+                            }}
                             onClick={(e) => {
-                                e.preventDefault();
                                 e.stopPropagation();
                             }}
                             className="w-24 accent-amber-600 h-1 bg-amber-900/40 rounded-full appearance-none cursor-pointer"
@@ -360,15 +372,17 @@ const App: React.FC = () => {
                         <div className="glass-card rounded-xl p-1 pointer-events-auto flex gap-1 shadow-lg">
                             <button 
                             type="button"
+                            tabIndex={-1}
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                e.stopImmediatePropagation();
                                 onUndoCanvas();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             onMouseDown={(e) => {
                                 e.preventDefault();
-                                e.stopPropagation();
                             }}
                             className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
                             title="Undo">
@@ -376,15 +390,17 @@ const App: React.FC = () => {
                             </button>
                             <button 
                             type="button"
+                            tabIndex={-1}
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                e.stopImmediatePropagation();
                                 onRedoCanvas();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             onMouseDown={(e) => {
                                 e.preventDefault();
-                                e.stopPropagation();
                             }}
                             className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
                             title="Redo">
@@ -393,15 +409,17 @@ const App: React.FC = () => {
                             <div className="w-px h-6 bg-amber-700/30 my-auto mx-1"></div>
                             <button 
                             type="button"
+                            tabIndex={-1}
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                e.stopImmediatePropagation();
                                 onDownloadCanvas();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             onMouseDown={(e) => {
                                 e.preventDefault();
-                                e.stopPropagation();
                             }}
                             className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
                             title="Download">
@@ -411,7 +429,13 @@ const App: React.FC = () => {
                         </div>
 
                         {/* Canvas */}
-                        <div className="flex-1 relative cursor-crosshair m-4 rounded-2xl overflow-hidden border border-white/5 shadow-inner"> 
+                        <div 
+                            className="flex-1 relative cursor-crosshair m-4 rounded-2xl overflow-hidden border border-white/5 shadow-inner"
+                            onWheel={(e) => {
+                                // Prevent page scroll when scrolling over canvas area
+                                e.stopPropagation();
+                            }}
+                        > 
                         <DrawingCanvas 
                             ref={canvasRef} 
                             tool={tool}
@@ -425,15 +449,17 @@ const App: React.FC = () => {
                         <div className="p-4 pt-0 flex gap-4">
                         <button 
                             type="button"
+                            tabIndex={-1}
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                e.stopImmediatePropagation();
                                 onClearCanvas();
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             onMouseDown={(e) => {
                                 e.preventDefault();
-                                e.stopPropagation();
                             }}
                             className="px-5 py-3 text-amber-200/70 hover:text-red-400 hover:bg-red-500/10 rounded-xl text-sm font-medium transition-colors border border-amber-800/20 hover:border-red-500/20"
                         >
@@ -441,15 +467,19 @@ const App: React.FC = () => {
                         </button>
                         <button 
                             type="button"
+                            tabIndex={-1}
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                e.stopImmediatePropagation();
-                                onCanvasSubmit();
+                                if (!isLoading) {
+                                    onCanvasSubmit();
+                                }
+                                if (e.currentTarget instanceof HTMLElement) {
+                                    e.currentTarget.blur();
+                                }
                             }}
                             onMouseDown={(e) => {
                                 e.preventDefault();
-                                e.stopPropagation();
                             }}
                             disabled={isLoading}
                             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-white rounded-xl text-sm font-bold tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-900/20 active:scale-[0.98] border border-white/10"

@@ -227,22 +227,21 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
       <canvas
         ref={canvasRef}
         onMouseDown={(e) => {
-          e.preventDefault();
           e.stopPropagation();
           startDrawing(e);
         }}
         onMouseUp={(e) => {
-          e.preventDefault();
           e.stopPropagation();
           finishDrawing();
         }}
         onMouseMove={(e) => {
-          e.preventDefault();
+          if (isDrawing) {
+            e.preventDefault();
+          }
           e.stopPropagation();
           draw(e);
         }}
         onMouseLeave={(e) => {
-          e.preventDefault();
           e.stopPropagation();
           finishDrawing();
         }}
