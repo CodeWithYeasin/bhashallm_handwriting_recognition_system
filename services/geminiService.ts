@@ -50,16 +50,85 @@ const recognitionSchema: Schema = {
   required: ["recognizedText", "confidence", "isQuestion", "bhashaInsights", "suggestedQuestions", "candidates"],
 };
 
+// Image preprocessing function to enhance text visibility for OCR
+const preprocessImageForOCR = async (base64Image: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        resolve(base64Image); // Fallback to original if canvas not available
+        return;
+      }
+
+      // Set canvas size to image size
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      // Draw original image
+      ctx.drawImage(img, 0, 0);
+
+      // Get image data for processing
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      // Apply preprocessing enhancements
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // Convert to grayscale using luminance formula
+        const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+
+        // Increase contrast for better text recognition
+        let enhanced = gray;
+        if (gray < 128) {
+          enhanced = Math.max(0, gray * 1.2 - 25); // Darken dark areas
+        } else {
+          enhanced = Math.min(255, gray * 1.1 + 10); // Lighten light areas
+        }
+
+        // Apply slight sharpening
+        data[i] = data[i + 1] = data[i + 2] = enhanced;
+        // Alpha channel remains unchanged
+      }
+
+      // Put processed image data back
+      ctx.putImageData(imageData, 0, 0);
+
+      // Convert back to base64
+      const processedBase64 = canvas.toDataURL('image/png');
+      resolve(processedBase64);
+    };
+
+    img.onerror = () => {
+      resolve(base64Image); // Fallback to original on error
+    };
+
+    img.src = base64Image;
+  });
+};
+
 export const analyzeHandwriting = async (base64Image: string): Promise<RecognitionResult> => {
   const startTime = performance.now();
-  
+
   console.log("analyzeHandwriting: Starting Gemini API call", {
     inputLength: base64Image.length,
     inputPreview: base64Image.substring(0, 50),
     timestamp: new Date().toISOString()
   });
-  
+
   try {
+    // Preprocess image for better text recognition
+    const processedImage = await preprocessImageForOCR(base64Image);
+    console.log("analyzeHandwriting: Image preprocessing completed", {
+      originalLength: base64Image.length,
+      processedLength: processedImage.length
+    });
+
     // Try multiple possible environment variable names
     const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
     
@@ -83,30 +152,33 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
     });
     const ai = new GoogleGenAI({ apiKey });
 
-    // Clean base64 string if it contains metadata header
-    const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+    // Clean processed base64 string if it contains metadata header
+    const cleanBase64 = processedImage.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     console.log("analyzeHandwriting: Base64 cleaned", {
       originalLength: base64Image.length,
+      processedLength: processedImage.length,
       cleanedLength: cleanBase64.length,
-      hasHeader: base64Image !== cleanBase64
+      hasHeader: processedImage !== cleanBase64
     });
 
     const systemInstruction = `
     You are BhashaLLM, a Bengali-only handwriting recognition and literary AI engine.
-    
+
     **CRITICAL LANGUAGE RESTRICTION**: This system ONLY recognizes and processes BENGALI text. Any other language (English, Hindi, Arabic, etc.) must be REJECTED.
-    
-    1. **OCR Task**: Accurately recognize the handwritten text in the image. 
+
+    1. **OCR Task**: Accurately recognize the handwritten text in the image.
        - **ONLY recognize Bengali characters** (বাংলা অক্ষর: অ-হ, ০-৯)
        - If the text contains ANY non-Bengali characters (English letters, numbers, symbols, etc.), set recognizedText to an empty string "" and confidence to 0.
        - If you cannot clearly identify Bengali text, return empty recognizedText.
        - **IMPORTANT**: Recognize the FULL text, even if it is long. Do not truncate or shorten the recognized text.
-    
+       - **FULL PAGE HANDLING**: For images containing multiple lines or words, read systematically from top to bottom, left to right. Preserve line breaks with newlines (\n) and word spacing. Treat each line as a separate unit but combine them into a single coherent text block.
+
     2. **Language Validation (MANDATORY)**:
        - Check if the recognized text contains ONLY Bengali characters (Bengali script: অ-হ, ০-৯, and Bengali punctuation).
        - If ANY English letters (A-Z, a-z), Arabic numerals (0-9), or other non-Bengali characters are detected, the text is INVALID.
        - Only proceed with analysis if the text is 100% Bengali.
-    
+       - **LENIENCY FOR FULL PAGES**: For full-page images, be more tolerant of minor noise or unclear characters. If 90%+ of the text is clearly Bengali, consider it valid and filter out non-Bengali noise.
+
     3. **Literary Analysis (BENGALI ONLY - CRITICAL FOR LONG TEXTS)**:
        - **ONLY** if the recognized text is valid Bengali:
          - **MANDATORY**: You MUST ALWAYS generate exactly 3 poet responses in bhashaInsights array, regardless of text length.
@@ -115,19 +187,19 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
          - If the text is a **Word or Statement**, provide a detailed poetic reflection or meaning in the styles of these poets.
          - **DO NOT skip poet responses for long texts**. Long texts require MORE detailed analysis, not less.
        - **IF TEXT IS NOT BENGALI**: Return an EMPTY array [] for bhashaInsights. Do NOT provide any poet responses.
-    
+
     4. **Prediction (Follow-up Questions - BENGALI ONLY)**:
        - **ONLY** if the recognized text is valid Bengali, suggest 3 diverse questions in Bengali:
          - **Tutor Question**: Focus on grammar, origin, definition, or correct usage (in Bengali).
          - **Analyst Question**: Focus on the visual structure, stroke quality, or historical context (in Bengali).
          - **Muse Question**: Focus on the deeper meaning, metaphorical interpretation, or artistic value (in Bengali).
        - **IF TEXT IS NOT BENGALI**: Return an EMPTY array [] for suggestedQuestions.
-    
+
     **The Personas (for bhashaInsights only - BENGALI TEXT REQUIRED):**
     - **Rabindranath Tagore**: Philosophical, spiritual, nature-focused, profound, universalism. For longer texts, provide deeper philosophical reflections.
     - **Kazi Nazrul Islam**: Revolutionary, passionate, rebellious, energetic, breaking barriers. For longer texts, explore the revolutionary themes more thoroughly.
     - **Jasim Uddin**: Folk, rural, simple, emotional, connected to the soil and village life. For longer texts, connect to the emotional and cultural depth.
-    
+
     **STRICT ENFORCEMENT**:
     - If recognizedText is empty or contains non-Bengali characters: bhashaInsights = [], suggestedQuestions = [], confidence = 0.
     - All poet responses MUST be in Bengali. If input is not Bengali, return empty arrays.
@@ -161,12 +233,18 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
               },
             },
             {
-              text: `Analyze this handwriting. IMPORTANT: 
-1. Only recognize Bengali text. If the text contains any non-Bengali characters (English, numbers, symbols), return empty recognizedText and empty arrays for bhashaInsights and suggestedQuestions. 
+              text: `Analyze this handwriting. IMPORTANT:
+1. Only recognize Bengali text. If the text contains any non-Bengali characters (English, numbers, symbols), return empty recognizedText and empty arrays for bhashaInsights and suggestedQuestions.
 2. Only provide poet responses if the text is 100% Bengali.
 3. **CRITICAL FOR LONG TEXTS**: If the recognized text is long, you MUST still generate complete poet responses. Long texts require MORE detailed analysis, not less. Always return exactly 3 poet insights in bhashaInsights array for valid Bengali text, regardless of text length.
 4. Ensure all poet responses are comprehensive and address the full meaning of the text, especially for longer passages.
-5. **FORMATTING**: Do NOT use em dashes (—) or any dashes (—, -, –) in the poetic content. Write the content directly without any dash prefixes, separators, or quotation marks.`,
+5. **FULL PAGE RECOGNITION**: This image may contain a full page of handwritten Bengali text with multiple lines and words. Read systematically:
+   - Start from the top-left and read line by line from left to right.
+   - Preserve natural line breaks with newlines (\n) between lines.
+   - Maintain word spacing within lines.
+   - Combine all recognized text into a single coherent block, but keep line structure intact.
+   - If the page has multiple paragraphs or sections, separate them appropriately.
+6. **FORMATTING**: Do NOT use em dashes (—) or any dashes (—, -, –) in the poetic content. Write the content directly without any dash prefixes, separators, or quotation marks.`,
             },
           ],
         },
@@ -202,10 +280,11 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
       
       // Additional validation: Check if recognized text contains non-Bengali characters
       const recognizedText = data.recognizedText || "";
-      const isBengali = /^[\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]+$/.test(recognizedText.trim());
-      
-      // If text is not Bengali or empty, clear poet responses and suggestions
-      if (!isBengali || !recognizedText.trim()) {
+      const trimmedText = recognizedText.trim();
+
+      // For full pages, be more lenient - allow up to 10% non-Bengali characters
+      const totalChars = trimmedText.length;
+      if (totalChars === 0) {
         return {
           recognizedText: "",
           confidence: 0,
@@ -216,6 +295,30 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
           processingTimeMs: processingTime,
         };
       }
+
+      // Count Bengali vs non-Bengali characters
+      const bengaliChars = trimmedText.match(/[\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]/g) || [];
+      const bengaliRatio = bengaliChars.length / totalChars;
+
+      // For full pages (longer text), be more lenient; for short text, be strict
+      const isBengali = totalChars > 50 ? bengaliRatio >= 0.9 : bengaliRatio === 1.0;
+
+      // If text is not sufficiently Bengali, clear poet responses and suggestions
+      if (!isBengali) {
+        console.log(`Text validation failed: ${bengaliRatio.toFixed(2)} Bengali ratio for ${totalChars} chars`);
+        return {
+          recognizedText: "",
+          confidence: 0,
+          isQuestion: false,
+          bhashaInsights: [],
+          suggestedQuestions: [],
+          candidates: data.candidates || [],
+          processingTimeMs: processingTime,
+        };
+      }
+
+      // Filter out non-Bengali characters for cleaner output
+      const cleanedText = trimmedText.replace(/[^\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]/g, '').trim();
       
       // Ensure bhashaInsights is an array and has at least 3 items for valid Bengali text
       const bhashaInsights = Array.isArray(data.bhashaInsights) ? data.bhashaInsights : [];
@@ -227,7 +330,7 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
       
       // Ensure we have the required fields with defaults
       return {
-        recognizedText: recognizedText,
+        recognizedText: cleanedText,
         confidence: data.confidence || 0,
         isQuestion: data.isQuestion || false,
         bhashaInsights: bhashaInsights,
