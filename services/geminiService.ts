@@ -7,85 +7,71 @@ const recognitionSchema: Schema = {
   properties: {
     recognizedText: {
       type: Type.STRING,
-      description: "The exact Bengali text content identified in the image section.",
+      description: "COMPLETE Bengali text from the image. Do NOT truncate. Include ALL text from top-left to bottom-right.",
     },
     confidence: {
       type: Type.NUMBER,
-      description: "Confidence score between 0 and 100.",
+      description: "Confidence score 0-100 based on text clarity and completeness.",
     },
     isQuestion: {
       type: Type.BOOLEAN,
-      description: "True if the text is a question.",
-    },
-    textMetadata: {
-      type: Type.OBJECT,
-      properties: {
-        sectionNumber: { type: Type.NUMBER },
-        totalSections: { type: Type.NUMBER },
-        lineCount: { type: Type.NUMBER },
-        wordCount: { type: Type.NUMBER },
-        containsMultipleParagraphs: { type: Type.BOOLEAN },
-      }
-    }
-  },
-  required: ["recognizedText", "confidence", "isQuestion", "textMetadata"],
-};
-
-// Schema for final aggregation
-const aggregationSchema: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    fullText: {
-      type: Type.STRING,
-      description: "Complete concatenated text from all sections with proper formatting.",
+      description: "True if any part of the text asks a question.",
     },
     bhashaInsights: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          poet: { type: Type.STRING },
-          mood: { type: Type.STRING },
-          content: { type: Type.STRING },
-        }
-      }
+          poet: { type: Type.STRING, description: "Rabindranath Tagore, Kazi Nazrul Islam, or Jasim Uddin" },
+          mood: { type: Type.STRING, description: "Emotional tone" },
+          content: { type: Type.STRING, description: "Comprehensive response matching text length. NO DASHES." },
+        },
+        required: ["poet", "mood", "content"]
+      },
+      description: "ALWAYS generate exactly 3 responses for valid Bengali text.",
     },
     suggestedQuestions: {
       type: Type.ARRAY,
-      items: { type: Type.STRING }
+      items: { type: Type.STRING },
+      description: "3 Bengali questions: 1. Educational, 2. Analytical, 3. Creative"
     },
-    confidence: { type: Type.NUMBER },
-    isQuestion: { type: Type.BOOLEAN },
-    textMetrics: {
+    candidates: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          label: { type: Type.STRING },
+          probability: { type: Type.NUMBER },
+        },
+      },
+      description: "Alternative text interpretations.",
+    },
+    processingSummary: {
       type: Type.OBJECT,
       properties: {
-        totalCharacters: { type: Type.NUMBER },
-        totalWords: { type: Type.NUMBER },
-        totalLines: { type: Type.NUMBER },
-        estimatedPages: { type: Type.NUMBER },
+        estimatedLines: { type: Type.NUMBER },
+        estimatedWords: { type: Type.NUMBER },
+        textDensity: { type: Type.STRING },
+        readDirection: { type: Type.STRING },
       }
     }
   },
-  required: ["fullText", "bhashaInsights", "suggestedQuestions", "confidence", "isQuestion", "textMetrics"],
+  required: ["recognizedText", "confidence", "isQuestion", "bhashaInsights", "suggestedQuestions", "candidates", "processingSummary"],
 };
 
-// Image preprocessing function to divide image into sections
-async function preprocessAndChunkImage(base64Image: string, maxSections: number = 6): Promise<string[]> {
-  console.log("Preprocessing image into sections...");
-  
-  const chunks: string[] = [];
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  const img = new Image();
-  
-  return new Promise((resolve, reject) => {
+// Image preprocessing helper (client-side)
+async function optimizeImageForOCR(base64Image: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
     img.onload = () => {
-      // Calculate optimal dimensions for OCR (Gemini works best with 1024px max dimension)
-      const maxDimension = 1024;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Optimize dimensions for Gemini (max 3072px recommended)
+      const maxDimension = 2048; // Conservative limit
       let width = img.width;
       let height = img.height;
       
-      // Scale down if too large
       if (width > maxDimension || height > maxDimension) {
         const scale = maxDimension / Math.max(width, height);
         width = Math.floor(width * scale);
@@ -95,110 +81,130 @@ async function preprocessAndChunkImage(base64Image: string, maxSections: number 
       canvas.width = width;
       canvas.height = height;
       
-      // Draw and enhance image
+      // Draw image
       ctx?.drawImage(img, 0, 0, width, height);
       
-      // Enhance for handwritten text
+      // Enhance for handwriting
       const imageData = ctx?.getImageData(0, 0, width, height);
       if (imageData && ctx) {
-        // Increase contrast for better OCR
         const data = imageData.data;
+        
+        // Simple contrast enhancement for handwritten text
         for (let i = 0; i < data.length; i += 4) {
+          // Increase contrast for better text recognition
           const r = data[i];
           const g = data[i + 1];
           const b = data[i + 2];
           
-          // Convert to grayscale and enhance contrast
-          const avg = 0.299 * r + 0.587 * g + 0.114 * b;
-          const enhanced = avg < 128 ? 0 : 255;
+          // Convert to grayscale with weighted average
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
           
-          data[i] = enhanced;     // R
-          data[i + 1] = enhanced; // G
-          data[i + 2] = enhanced; // B
+          // Enhance contrast
+          const enhanced = gray < 150 ? Math.max(0, gray - 40) : Math.min(255, gray + 40);
+          
+          data[i] = enhanced;
+          data[i + 1] = enhanced;
+          data[i + 2] = enhanced;
         }
+        
         ctx.putImageData(imageData, 0, 0);
       }
       
-      // Get full image as base64
-      const fullImage = canvas.toDataURL('image/jpeg', 0.85);
-      
-      // For very large images, create logical sections
-      const sections = Math.min(maxSections, Math.ceil(height / 400)); // ~400px per section
-      
-      if (sections <= 1 || height < 800) {
-        // Image is small enough for single processing
-        chunks.push(fullImage);
-      } else {
-        // Create horizontal sections
-        const sectionHeight = Math.ceil(height / sections);
-        
-        for (let i = 0; i < sections; i++) {
-          const sectionCanvas = document.createElement('canvas');
-          const sectionCtx = sectionCanvas.getContext('2d');
-          
-          sectionCanvas.width = width;
-          sectionCanvas.height = sectionHeight + 100; // Overlap to prevent cutting words
-          
-          const startY = Math.max(0, i * sectionHeight - 50); // 50px overlap
-          const endY = Math.min(height, startY + sectionHeight + 100);
-          const actualHeight = endY - startY;
-          
-          sectionCanvas.height = actualHeight;
-          
-          // Draw the section
-          sectionCtx?.drawImage(
-            canvas,
-            0, startY, width, actualHeight, // Source
-            0, 0, width, actualHeight       // Destination
-          );
-          
-          chunks.push(sectionCanvas.toDataURL('image/jpeg', 0.9));
-        }
-      }
-      
-      console.log(`Image divided into ${chunks.length} sections`);
-      resolve(chunks);
+      // Convert to JPEG with optimal quality
+      const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.92);
+      resolve(optimizedBase64);
     };
     
-    img.onerror = reject;
     img.src = base64Image;
   });
 }
 
-// Process a single image section
-async function processImageSection(ai: GoogleGenAI, imageChunk: string, sectionNumber: number, totalSections: number): Promise<any> {
-  const cleanBase64 = imageChunk.replace(/^data:image\/jpeg;base64,/, "");
+export const analyzeHandwriting = async (base64Image: string): Promise<RecognitionResult> => {
+  const startTime = performance.now();
   
-  const sectionPrompt = `
-  **IMAGE SECTION ${sectionNumber} OF ${totalSections}**
-  
-  Analyze ONLY this section of a larger Bengali handwritten document.
-  
-  **CRITICAL INSTRUCTIONS:**
-  1. Extract ALL Bengali text from this section only
-  2. Preserve EXACT characters, line breaks, and spacing
-  3. If text continues from previous section or continues to next, still extract completely
-  4. Return ONLY the text found in this section
-  5. Include confidence score based on clarity of THIS section only
-  
-  **BENGALI CHARACTER RECOGNITION PRIORITIES:**
-  - Focus on অ-হ letters
-  - Recognize যুক্তাক্ষর (compound letters)
-  - Preserve punctuation (।, ,, ;, :, !, ?)
-  - Maintain line breaks where visible
-  
-  **OUTPUT FORMAT:**
-  Return pure Bengali text only from this section.
-  `;
+  console.log("Starting FULL PAGE analysis", {
+    timestamp: new Date().toISOString(),
+    imageSize: Math.round(base64Image.length / 1024) + "KB"
+  });
   
   try {
+    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error("API Key not found. Please set GEMINI_API_KEY");
+    }
+    
+    const ai = new GoogleGenAI({ apiKey });
+    
+    // Optimize image before sending
+    console.log("Optimizing image for OCR...");
+    const optimizedImage = await optimizeImageForOCR(base64Image);
+    const cleanBase64 = optimizedImage.replace(/^data:image\/jpeg;base64,/, "");
+    
+    console.log("Image optimized:", {
+      original: Math.round(base64Image.length / 1024) + "KB",
+      optimized: Math.round(optimizedImage.length / 1024) + "KB"
+    });
+    
+    // Enhanced system instruction for FULL PAGE recognition
+    const systemInstruction = `
+    ## BENGALI FULL-PAGE HANDWRITING RECOGNITION EXPERT
+    
+    You are a specialized OCR engine for COMPLETE Bengali handwritten pages.
+    
+    **CRITICAL MISSION:**
+    1. **EXTRACT EVERYTHING**: Read ALL text from the ENTIRE image
+    2. **NO TRUNCATION**: Never shorten text. Return 100% of what's written.
+    3. **PRESERVE STRUCTURE**: Keep paragraphs, lines, and spacing exactly as written.
+    
+    **SCANNING STRATEGY:**
+    - Scan systematically: Top → Bottom, Left → Right
+    - Read line by line, paragraph by paragraph
+    - For dense text: Read slowly and carefully
+    - For light text: Still capture everything
+    
+    **CHARACTER RECOGNITION PRIORITIES:**
+    1. **Primary**: অ-হ Bengali letters
+    2. **Secondary**: যুক্তাক্ষর (compound letters)
+    3. **Tertiary**: Punctuation (। , ; : ! ? " ")
+    4. **Quaternary**: Numbers (০-৯)
+    
+    **TEXT LENGTH ADAPTATION:**
+    - 1-100 chars: Normal processing
+    - 101-500 chars: Detailed reading
+    - 501-2000 chars: Comprehensive reading (SLOW but COMPLETE)
+    - 2000+ chars: EXTREMELY careful reading (capture EVERYTHING)
+    
+    **VALIDATION RULES:**
+    - If text is 100% Bengali: Process fully
+    - If ANY non-Bengali characters: Return empty recognizedText
+    - Confidence based on text clarity and completeness
+    
+    **POET RESPONSE SCALING:**
+    - SHORT text (<100 chars): Focused, concise responses
+    - MEDIUM text (100-500 chars): Balanced responses
+    - LONG text (500-1500 chars): Detailed responses
+    - VERY LONG text (1500+ chars): Comprehensive, thematic responses
+    
+    **ALWAYS generate 3 poet responses** if text is Bengali and non-empty.
+    
+    **FORMATTING:**
+    - NO dashes (—, -, –) in poet responses
+    - Clean Bengali text only
+    - Direct writing without prefixes
+    `;
+    
+    console.log("Sending to Gemini 2.5 Flash...");
+    
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash", // Using 1.5 for better OCR
+      model: "gemini-2.5-flash", // Your current model
       config: {
         responseMimeType: "application/json",
         responseSchema: recognitionSchema,
-        temperature: 0.1,
-        maxOutputTokens: 2048,
+        systemInstruction: systemInstruction,
+        temperature: 0.1, // Very low for consistent OCR
+        topP: 0.1,
+        maxOutputTokens: 8192, // Maximum for long texts
       },
       contents: {
         parts: [
@@ -209,177 +215,91 @@ async function processImageSection(ai: GoogleGenAI, imageChunk: string, sectionN
             },
           },
           {
-            text: sectionPrompt
+            text: `## FULL PAGE BENGALI HANDWRITING ANALYSIS
+            
+            **CRITICAL INSTRUCTIONS:**
+            
+            1. **READ EVERYTHING**: Extract COMPLETE text from this image. 
+               - Start from top-left corner
+               - Read line by line until bottom-right
+               - DO NOT STOP until you've read ALL text
+            
+            2. **NO TRUNCATION**: 
+               - If text is long, STILL return ALL of it
+               - Do NOT shorten or summarize
+               - Preserve EXACT wording and structure
+            
+            3. **BENGALI-ONLY VALIDATION**:
+               - Check EVERY character is Bengali
+               - If ANY non-Bengali: recognizedText = ""
+               - Otherwise: Return full text
+            
+            4. **TEXT METRICS**:
+               - Estimate line count
+               - Estimate word count
+               - Note text density
+            
+            5. **POET RESPONSES**:
+               - For LONG texts: Provide detailed thematic analysis
+               - For SHORT texts: Focus on word-level analysis
+               - ALWAYS 3 responses if text is valid Bengali
+            
+            6. **CONFIDENCE SCORING**:
+               - Base on text clarity AND completeness
+               - Higher if you captured everything
+               - Lower if text was blurry
+            
+            **SCAN THIS IMAGE COMPLETELY AND RETURN ALL BENGALI TEXT.**
+            
+            Remember: You are reading a FULL PAGE. Take your time. Be thorough.
+            `
           }
         ]
       }
     });
     
-    if (response.text) {
-      const data = JSON.parse(response.text);
-      return {
-        ...data,
-        textMetadata: {
-          ...data.textMetadata,
-          sectionNumber,
-          totalSections
-        }
-      };
-    }
-  } catch (error) {
-    console.error(`Error processing section ${sectionNumber}:`, error);
-    return {
-      recognizedText: `[ত্রুটি: এই অংশ পড়া যায়নি]`,
-      confidence: 0,
-      isQuestion: false,
-      textMetadata: {
-        sectionNumber,
-        totalSections,
-        lineCount: 0,
-        wordCount: 0,
-        containsMultipleParagraphs: false
-      }
-    };
-  }
-  
-  return {
-    recognizedText: "",
-    confidence: 0,
-    isQuestion: false,
-    textMetadata: {
-      sectionNumber,
-      totalSections,
-      lineCount: 0,
-      wordCount: 0,
-      containsMultipleParagraphs: false
-    }
-  };
-}
-
-// Main enhanced handwriting analysis function
-export const analyzeHandwriting = async (base64Image: string): Promise<RecognitionResult> => {
-  const startTime = performance.now();
-  
-  console.log("analyzeHandwriting: Starting enhanced processing", {
-    inputLength: base64Image.length,
-    timestamp: new Date().toISOString()
-  });
-  
-  try {
-    const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
-    
-    if (!apiKey) {
-      throw new Error("API Key not found. Please set GEMINI_API_KEY in your .env file");
-    }
-    
-    const ai = new GoogleGenAI({ apiKey });
-    
-    // Step 1: Preprocess and chunk the image
-    console.log("Step 1: Image preprocessing...");
-    const imageChunks = await preprocessAndChunkImage(base64Image, 4); // Max 4 sections
-    
-    // Step 2: Process each section in parallel with rate limiting
-    console.log(`Step 2: Processing ${imageChunks.length} sections...`);
-    
-    const sectionPromises = imageChunks.map((chunk, index) => 
-      processImageSection(ai, chunk, index + 1, imageChunks.length)
-    );
-    
-    // Process with delay between requests to avoid rate limiting
-    const sectionResults = [];
-    for (let i = 0; i < sectionPromises.length; i++) {
-      console.log(`Processing section ${i + 1}/${sectionPromises.length}...`);
-      const result = await sectionPromises[i];
-      sectionResults.push(result);
-      
-      // Add delay between requests (except last one)
-      if (i < sectionPromises.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-    
-    // Step 3: Aggregate results
-    console.log("Step 3: Aggregating results...");
-    
-    const allText = sectionResults
-      .map(result => result.recognizedText || "")
-      .join('\n\n') // Add spacing between sections
-      .replace(/\n{3,}/g, '\n\n'); // Normalize excessive newlines
-    
-    const avgConfidence = sectionResults.length > 0 
-      ? sectionResults.reduce((sum, r) => sum + (r.confidence || 0), 0) / sectionResults.length
-      : 0;
-    
-    const containsQuestion = sectionResults.some(r => r.isQuestion);
-    
-    // Step 4: Generate comprehensive analysis from full text
-    console.log("Step 4: Generating comprehensive analysis...");
-    
-    const analysisPrompt = `
-    **FULL BENGALI TEXT ANALYSIS**
-    
-    Complete Bengali Text (from multiple image sections):
-    """
-    ${allText}
-    """
-    
-    **ANALYSIS TASK:**
-    1. **TEXT VALIDATION**: 
-       - Verify this is 100% Bengali text
-       - If ANY non-Bengali characters exist, return empty results
-       - Calculate overall confidence based on text coherence
-    
-    2. **COMPREHENSIVE POETIC ANALYSIS** (Generate exactly 3):
-       - RABINDRANATH TAGORE: Philosophical, spiritual, nature-focused reflection
-       - KAZI NAZRUL ISLAM: Revolutionary, passionate, energetic response
-       - JASIM UDDIN: Folk, emotional, rural-life perspective
-    
-    3. **SUGGESTED QUESTIONS** (Generate exactly 3 in Bengali):
-       - 1. Educational/Grammar question (Tutor style)
-       - 2. Analytical/Structural question (Analyst style)
-       - 3. Creative/Thematic question (Muse style)
-    
-    4. **TEXT METRICS**:
-       - Calculate character count, word count, line count
-       - Estimate if this represents a full page
-    
-    **RULES FOR LONG TEXTS:**
-    - For texts over 500 characters: Provide detailed poet responses (100-150 words each)
-    - For texts over 1000 characters: Provide comprehensive analysis
-    - ALWAYS generate 3 poet responses regardless of length
-    - Responses should address the ENTIRE text, not just parts
-    
-    **FORMATTING:**
-    - No dashes (—, -, –) in poet responses
-    - Clean Bengali text only
-    - Direct language without prefixes
-    `;
-    
-    const finalResponse = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: aggregationSchema,
-        temperature: 0.7,
-        maxOutputTokens: 4096,
-      },
-      contents: [
-        {
-          text: analysisPrompt
-        }
-      ]
-    });
-    
     const endTime = performance.now();
     const processingTime = Math.round(endTime - startTime);
     
-    if (finalResponse.text) {
-      const finalData = JSON.parse(finalResponse.text);
+    console.log("Response received", {
+      time: processingTime + "ms",
+      hasText: !!response.text,
+      textLength: response.text?.length || 0
+    });
+    
+    if (response.text) {
+      let data;
+      try {
+        data = JSON.parse(response.text);
+      } catch (parseError) {
+        console.error("JSON Parse Error:", parseError);
+        // Try to extract JSON from response
+        const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            data = JSON.parse(jsonMatch[0]);
+          } catch (e) {
+            throw new Error("Failed to parse response");
+          }
+        } else {
+          throw new Error("Invalid JSON response");
+        }
+      }
       
-      // Validate text is Bengali
-      const isBengali = /^[\u0980-\u09FF\u09E6-\u09EF\s\r\n\u200C\u200D,\.;:!?\-'"()।॥]+$/.test(allText.trim());
+      // Extract and validate text
+      const recognizedText = data.recognizedText || "";
+      const isBengali = /^[\u0980-\u09FF\u09E6-\u09EF\s\r\n\u200C\u200D,\.;:!?\-'"()।॥—–]*$/.test(recognizedText);
       
-      if (!isBengali || !allText.trim()) {
+      console.log("Validation:", {
+        textLength: recognizedText.length,
+        isBengali: isBengali,
+        confidence: data.confidence,
+        preview: recognizedText.substring(0, 200) + (recognizedText.length > 200 ? "..." : "")
+      });
+      
+      // Handle non-Bengali or empty text
+      if (!isBengali || !recognizedText.trim()) {
+        console.log("Text rejected - not Bengali or empty");
         return {
           recognizedText: "",
           confidence: 0,
@@ -391,42 +311,75 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
         };
       }
       
-      // Ensure we have poet insights
-      let bhashaInsights = Array.isArray(finalData.bhashaInsights) ? finalData.bhashaInsights : [];
+      // Process poet insights
+      let bhashaInsights = Array.isArray(data.bhashaInsights) ? data.bhashaInsights : [];
+      const textLength = recognizedText.length;
       
-      // Fallback if Gemini didn't generate insights
-      if (bhashaInsights.length === 0 && allText.trim()) {
-        bhashaInsights = generateFallbackPoetInsights(allText);
+      // Generate fallback insights if needed
+      if (bhashaInsights.length < 3 && recognizedText.trim()) {
+        console.log(`Generating fallback insights (got ${bhashaInsights.length}, need 3)`);
+        bhashaInsights = ensureThreePoetInsights(bhashaInsights, recognizedText, textLength);
       }
       
       // Ensure exactly 3 insights
-      if (bhashaInsights.length > 3) bhashaInsights = bhashaInsights.slice(0, 3);
-      while (bhashaInsights.length < 3) {
-        bhashaInsights.push(generateEmptyPoetInsight(bhashaInsights.length));
+      bhashaInsights = bhashaInsights.slice(0, 3);
+      
+      // Process suggested questions
+      let suggestedQuestions = Array.isArray(data.suggestedQuestions) ? data.suggestedQuestions : [];
+      if (suggestedQuestions.length < 3) {
+        suggestedQuestions = generateFallbackQuestions(recognizedText, suggestedQuestions);
       }
       
+      // Calculate text statistics
+      const lines = recognizedText.split('\n').filter(l => l.trim().length > 0);
+      const words = recognizedText.split(/\s+/).filter(w => w.length > 0);
+      const textDensity = textLength > 1000 ? 'very_dense' : 
+                         textLength > 500 ? 'dense' : 
+                         textLength > 100 ? 'medium' : 'light';
+      
       return {
-        recognizedText: allText,
-        confidence: Math.min(95, avgConfidence * 0.8 + (finalData.confidence || 0) * 0.2),
-        isQuestion: containsQuestion || finalData.isQuestion,
+        recognizedText: recognizedText,
+        confidence: data.confidence || calculateDynamicConfidence(textLength, lines.length),
+        isQuestion: data.isQuestion || recognizedText.includes('?') || recognizedText.includes('؟'),
         bhashaInsights: bhashaInsights,
-        suggestedQuestions: Array.isArray(finalData.suggestedQuestions) 
-          ? finalData.suggestedQuestions 
-          : generateDefaultQuestions(allText),
-        candidates: [],
+        suggestedQuestions: suggestedQuestions,
+        candidates: Array.isArray(data.candidates) ? data.candidates : [],
         processingTimeMs: processingTime,
+        textLengthCategory: textLength > 1000 ? 'full_page' : 
+                           textLength > 500 ? 'long' : 
+                           textLength > 100 ? 'medium' : 'short',
+        processingSummary: data.processingSummary || {
+          estimatedLines: lines.length,
+          estimatedWords: words.length,
+          textDensity: textDensity,
+          readDirection: 'top_to_bottom'
+        }
       };
     }
     
-    throw new Error("No final analysis generated");
+    throw new Error("No response text from Gemini");
     
   } catch (error: any) {
-    console.error("Enhanced analysis failed:", error);
+    console.error("FULL PAGE Analysis Error:", {
+      message: error.message,
+      name: error.name,
+      stack: error.stack?.substring(0, 200)
+    });
     
     const processingTime = Math.round(performance.now() - startTime);
     
+    // Specific error messages
+    let errorText = "ত্রুটি: বিশ্লেষণ ব্যর্থ";
+    if (error.message.includes("quota") || error.message.includes("rate limit")) {
+      errorText = "সার্ভার ব্যস্ত। কিছুক্ষণ পর চেষ্টা করুন।";
+    } else if (error.message.includes("token") || error.message.includes("length")) {
+      errorText = "ছবিটিতে খুব বেশি লেখা আছে। ছোট করে চেষ্টা করুন।";
+    } else if (error.message.includes("API Key")) {
+      errorText = "API কী সেট আপ করুন।";
+    }
+    
     return {
-      recognizedText: `ত্রুটি: ${error.message.substring(0, 100)}`,
+      recognizedText: errorText,
       confidence: 0,
       isQuestion: false,
       bhashaInsights: [],
@@ -437,98 +390,129 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
   }
 };
 
-// Helper functions
-function generateFallbackPoetInsights(text: string): any[] {
-  const textLength = text.length;
-  const wordCount = text.split(/\s+/).length;
-  
-  return [
+// Helper function to ensure 3 poet insights
+function ensureThreePoetInsights(existingInsights: any[], text: string, textLength: number): any[] {
+  const poets = [
     {
-      poet: "Rabindranath Tagore",
+      name: "Rabindranath Tagore",
       mood: "Philosophical",
-      content: `এই ${textLength > 500 ? 'বিস্তৃত রচনায়' : 'লেখনীতে'} ${wordCount} শব্দের মাধ্যমে একটি গভীর চিন্তার প্রকাশ ঘটেছে। ভাষার সৌন্দর্য ও অর্থের গভীরতা পাঠককে নিজের অন্তরের সাথে সংযোগ স্থাপনে উদ্বুদ্ধ করে।`
+      baseResponse: `এই ${textLength > 500 ? 'বিস্তৃত লেখনী' : 'লেখাটি'} ${textLength > 1000 ? 'গভীর চিন্তার প্রকাশ।' : 'সুন্দর অভিব্যক্তি।'} ভাষার মাধুর্যে জীবনদর্শনের ছোঁয়া।`
     },
     {
-      poet: "Kazi Nazrul Islam",
+      name: "Kazi Nazrul Islam",
       mood: "Revolutionary",
-      content: `শব্দগুলির মধ্যে লক্ষ্য করা যায় স্পষ্টতা ও শক্তির প্রকাশ। ${textLength > 300 ? 'সম্পূর্ণ রচনাটি বিশ্লেষণ করলে বোঝা যায় এটি কোনও সাধারণ লেখা নয়, বরং একটি সচেতন অভিব্যক্তি।' : 'প্রতিটি বর্ণ যেন নিজের অধিকারের দাবি জানাচ্ছে।'}`
+      baseResponse: `শব্দগুলিতে ${textLength > 500 ? 'প্রবল শক্তি ও স্পষ্টতার' : 'স্পষ্ট বক্তব্যের'} প্রকাশ। প্রতিটি বর্ণে বিদ্যমান সম্ভাবনা।`
     },
     {
-      poet: "Jasim Uddin",
+      name: "Jasim Uddin",
       mood: "Folk",
-      content: `লেখনীর সরলতা ও স্বচ্ছতা আমাকে গ্রাম বাংলার কথাই মনে করিয়ে দেয়। ${text.includes('?') ? 'প্রশ্নটি সাধারণ মানুষের জীবনযাপন থেকে উঠে এসেছে বলেই মনে হয়।' : 'শব্দগুলি আমাদের দৈনন্দিন জীবনের খুব কাছের।'}`
+      baseResponse: `লেখনীর সরলতা আমাকে গ্রাম বাংলার কথাই মনে করিয়ে দেয়। ${textLength > 300 ? 'শব্দগুলি আমাদের দৈনন্দিন জীবনের খুব কাছের।' : 'সহজ ভাষায় গভীর অনুভূতি।'}`
     }
   ];
+  
+  const insights = [...existingInsights];
+  
+  // Fill missing insights
+  for (let i = insights.length; i < 3; i++) {
+    const poet = poets[i];
+    insights.push({
+      poet: poet.name,
+      mood: poet.mood,
+      content: generateDetailedPoetResponse(poet.name, text, textLength)
+    });
+  }
+  
+  return insights;
 }
 
-function generateEmptyPoetInsight(index: number): any {
-  const poets = [
-    { name: "Rabindranath Tagore", mood: "Philosophical" },
-    { name: "Kazi Nazrul Islam", mood: "Revolutionary" },
-    { name: "Jasim Uddin", mood: "Folk" }
+function generateDetailedPoetResponse(poet: string, text: string, textLength: number): string {
+  const lines = text.split('\n').filter(l => l.trim().length > 0);
+  const firstLine = lines[0] || text.substring(0, 50);
+  
+  if (poet === "Rabindranath Tagore") {
+    if (textLength > 1000) {
+      return `এই সম্পূর্ণ রচনায় ${lines.length} লাইনের মাধ্যমে একটি গভীর জীবনদর্শনের প্রকাশ ঘটেছে। লেখক ভাষার মাধ্যমে আত্মার সাথে সংযোগ স্থাপনের চেষ্টা করেছেন, যা প্রকৃতির অনন্ত সৌন্দর্যের সাথে মিলে যায়। প্রতিটি শব্দ যেন আলোর নৃত্য, প্রতিটি বাক্য জীবনের গভীর অর্থের সন্ধানী।`;
+    } else if (textLength > 500) {
+      return `লেখনীতে ${textLength} অক্ষরের প্রকাশিত ভাবনা প্রকৃতির সাথে মানবমনের সংযোগকে ফুটিয়ে তুলেছে। ভাষার সৌন্দর্য পাঠককে নিজের অন্তরের গভীরে পৌঁছে দেয়।`;
+    } else {
+      return `"${firstLine}" - এই বাক্যগুলির মধ্যে রয়েছে গভীর অর্থের সম্ভাবনা। ভাষা ও ভাবনার এই সংমিশ্রণ প্রকৃতির অনন্ত রহস্যের কথা স্মরণ করিয়ে দেয়।`;
+    }
+  }
+  
+  if (poet === "Kazi Nazrul Islam") {
+    if (textLength > 1000) {
+      return `${lines.length} লাইনের এই রচনা কেবল লেখা নয়, একটি বিদ্রোহের manifest। প্রতিটি শব্দে অত্যাচারের বিরুদ্ধে প্রতিবাদ, প্রতিটি বাক্যে মুক্তির আকুতি। এই লেখা পড়ে মনে হয় লেখক শুধু কলম চালাননি, তরবারিও চালিয়েছেন শব্দের মাধ্যমে।`;
+    } else if (textLength > 500) {
+      return `শব্দগুলি শৃঙ্খল ভাঙার চেষ্টা করছে। ${textLength} অক্ষরের মধ্যে লুকিয়ে আছে পরিবর্তনের ডাক। ভাষা এখানে হাতিয়ার, লেখা যুদ্ধের ঘোষণা।`;
+    } else {
+      return `"${firstLine}" - এই কথাগুলোতে শোনা যায় মুক্তির ডাক। প্রতিটি অক্ষর যেন নতুন ভোরের প্রতীক্ষায় আছে।`;
+    }
+  }
+  
+  if (poet === "Jasim Uddin") {
+    if (textLength > 1000) {
+      return `সম্পূর্ণ পৃষ্ঠাজুড়ে ছড়িয়ে আছে গ্রাম বাংলার গল্প। ${lines.length} লাইনের এই লেখা পড়তে পড়তে মনে হয় যেন পল্লীর মাঠে হেঁটে যাচ্ছি, কৃষকের সাথে কথা বলছি, নদীর পাড়ে বসে আছি। লেখায় ফুটে উঠেছে সাধারণ মানুষের সুখ-দুঃখ, আশা-নিরাশার কাহিনী।`;
+    } else if (textLength > 500) {
+      return `লেখনীতে গ্রাম্য জীবনের সরল চিত্র ফুটে উঠেছে। ${textLength} অক্ষরের মধ্যে ধরা পড়েছে মাটির গন্ধ, নদীর জল, কৃষকের পরিশ্রম। শব্দগুলি খুবই সহজ কিন্তু গভীর অনুভূতিপূর্ণ।`;
+    } else {
+      return `"${firstLine}" - এই কথাগুলো শুনে মনে হয় যেন পল্লীর কোনো বৃদ্ধ জ্ঞানী তার অভিজ্ঞতা বর্ণনা করছেন। সহজ ভাষায় জীবনের গভীর সত্য।`;
+    }
+  }
+  
+  return "এই লেখনী বিশ্লেষণের অপেক্ষায় রয়েছে।";
+}
+
+function generateFallbackQuestions(text: string, existingQuestions: string[]): string[] {
+  const questions = [...existingQuestions];
+  
+  const defaultQuestions = [
+    "এই লেখার ব্যাকরণগত গঠন সম্পর্কে বিস্তারিত ব্যাখ্যা দিন।",
+    "হাতের লেখার শৈলী ও কাঠামো বিশ্লেষণ করে বলুন এটি কতটা স্পষ্ট।",
+    "এই লেখা থেকে কী সৃজনশীল অনুপ্রেরণা পাওয়া যায়?"
   ];
   
-  return {
-    poet: poets[index].name,
-    mood: poets[index].mood,
-    content: "এই লেখনীটি এখনও সম্পূর্ণ বিশ্লেষণের অপেক্ষায় রয়েছে।"
-  };
+  for (let i = questions.length; i < 3; i++) {
+    questions.push(defaultQuestions[i] || defaultQuestions[0]);
+  }
+  
+  return questions.slice(0, 3);
 }
 
-function generateDefaultQuestions(text: string): string[] {
-  return [
-    "এই লেখার ব্যাকরণগত গঠন সম্পর্কে কী বলবেন?",
-    "হাতের লেখার শৈলী ও গঠন বিশ্লেষণ করুন",
-    "এই লেখার সৃজনশীল দিকগুলো কী কী?"
-  ];
+function calculateDynamicConfidence(textLength: number, lineCount: number): number {
+  // Base confidence calculation
+  let confidence = 70; // Base
+  
+  // Adjust based on text length (longer text = more confidence in completeness)
+  if (textLength > 1000) confidence += 10;
+  else if (textLength > 500) confidence += 5;
+  else if (textLength < 50) confidence -= 10;
+  
+  // Adjust based on line count (more lines = more structured)
+  if (lineCount > 10) confidence += 5;
+  else if (lineCount > 5) confidence += 3;
+  
+  return Math.min(95, Math.max(30, confidence));
 }
 
-// Alternative simplified function for single-pass processing (faster but less accurate for full pages)
-export const analyzeHandwritingSimple = async (base64Image: string): Promise<RecognitionResult> => {
+// Alternative: Direct approach for full pages (simpler prompt)
+export const analyzeFullPageDirect = async (base64Image: string): Promise<RecognitionResult> => {
   const startTime = performance.now();
   
   try {
-    const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
     if (!apiKey) throw new Error("API Key not found");
     
     const ai = new GoogleGenAI({ apiKey });
     const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     
-    // Simple but effective prompt for full pages
-    const prompt = `
-    **FULL PAGE BENGALI HANDWRITING ANALYSIS**
-    
-    You are analyzing a FULL PAGE of Bengali handwritten text. This is CRITICAL:
-    
-    1. **EXTRACT EVERYTHING**: Read ALL text from top to bottom, left to right
-    2. **NO TRUNCATION**: Do NOT shorten or truncate the text. Return COMPLETE text.
-    3. **PRESERVE STRUCTURE**: Keep paragraphs, line breaks, and spacing as in original
-    4. **ONLY BENGALI**: If text contains ANY non-Bengali, return empty string
-    
-    **FOR LONG TEXTS (500+ characters)**:
-    - Still return COMPLETE text
-    - Still generate 3 poet responses (detailed)
-    - Still generate 3 suggested questions
-    
-    **OCR FOCUS**:
-    - Prioritize accuracy over speed
-    - Use context to resolve ambiguous characters
-    - Recognize যুক্তাক্ষর (compound letters) correctly
-    - Maintain punctuation (।, ,, ;, :, !, ?)
-    
-    **OUTPUT INSTRUCTIONS**:
-    Return complete Bengali text exactly as written.
-    For analysis, consider the ENTIRE text as one coherent piece.
-    `;
+    // Very simple, direct prompt
+    const prompt = `READ ALL BENGALI TEXT FROM THIS IMAGE. EVERYTHING. DO NOT MISS ANYTHING. DO NOT TRUNCATE. RETURN COMPLETE TEXT.`;
     
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash", // Use 1.5 for better long-context
+      model: "gemini-2.5-flash",
       config: {
-        responseMimeType: "application/json",
-        responseSchema: aggregationSchema,
-        systemInstruction: prompt,
-        temperature: 0.1,
-        maxOutputTokens: 8192, // Maximum for long texts
+        temperature: 0,
+        maxOutputTokens: 8192,
       },
       contents: {
         parts: [
@@ -539,7 +523,7 @@ export const analyzeHandwritingSimple = async (base64Image: string): Promise<Rec
             },
           },
           {
-            text: "Read ALL Bengali text from this full page image completely. Do not truncate. Extract everything."
+            text: prompt
           }
         ]
       }
@@ -548,12 +532,10 @@ export const analyzeHandwritingSimple = async (base64Image: string): Promise<Rec
     const endTime = performance.now();
     
     if (response.text) {
-      const data = JSON.parse(response.text);
+      const recognizedText = response.text.trim();
+      const isBengali = /^[\u0980-\u09FF\u09E6-\u09EF\s\r\n\u200C\u200D,\.;:!?\-'"()।॥]+$/.test(recognizedText);
       
-      // Validate Bengali
-      const isBengali = /^[\u0980-\u09FF\u09E6-\u09EF\s\r\n\u200C\u200D,\.;:!?\-'"()।॥]+$/.test(data.fullText || "");
-      
-      if (!isBengali || !data.fullText?.trim()) {
+      if (!isBengali || !recognizedText) {
         return {
           recognizedText: "",
           confidence: 0,
@@ -565,24 +547,27 @@ export const analyzeHandwritingSimple = async (base64Image: string): Promise<Rec
         };
       }
       
+      // Generate insights based on the text
+      const bhashaInsights = ensureThreePoetInsights([], recognizedText, recognizedText.length);
+      const suggestedQuestions = generateFallbackQuestions(recognizedText, []);
+      
       return {
-        recognizedText: data.fullText,
-        confidence: data.confidence || 85,
-        isQuestion: data.isQuestion || false,
-        bhashaInsights: Array.isArray(data.bhashaInsights) ? data.bhashaInsights : generateFallbackPoetInsights(data.fullText),
-        suggestedQuestions: Array.isArray(data.suggestedQuestions) ? data.suggestedQuestions : generateDefaultQuestions(data.fullText),
+        recognizedText: recognizedText,
+        confidence: 85,
+        isQuestion: recognizedText.includes('?') || recognizedText.includes('؟'),
+        bhashaInsights: bhashaInsights,
+        suggestedQuestions: suggestedQuestions,
         candidates: [],
         processingTimeMs: Math.round(endTime - startTime),
       };
     }
     
-    throw new Error("No response from API");
+    throw new Error("No response");
     
-  } catch (error: any) {
-    console.error("Simple analysis failed:", error);
-    
+  } catch (error) {
+    console.error("Direct analysis error:", error);
     return {
-      recognizedText: "ত্রুটি: বিশ্লেষণ ব্যর্থ। ছবিটি খুব বড় হতে পারে বা বাংলা লেখা স্পষ্ট নয়।",
+      recognizedText: "ত্রুটি: সরাসরি বিশ্লেষণ ব্যর্থ",
       confidence: 0,
       isQuestion: false,
       bhashaInsights: [],
@@ -593,7 +578,7 @@ export const analyzeHandwritingSimple = async (base64Image: string): Promise<Rec
   }
 };
 
-// Keep your existing chatWithBhasha function
+// Keep your existing chatWithBhasha function unchanged
 export const chatWithBhasha = async (history: ChatMessage[], contextText: string, persona: ChatPersona = 'tutor'): Promise<string> => {
   // Your existing implementation
   // ... (keep as is)
