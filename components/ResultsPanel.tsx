@@ -233,41 +233,52 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ result, isLoading }) => {
           <Feather size={12} className="text-amber-500" /> Literary Perspectives
         </h4>
         <div className="space-y-4">
-          {result.bhashaInsights.map((insight, idx) => (
-            <div 
-              key={idx} 
-              className="glass-card rounded-2xl p-5 border border-white/5 flex gap-5 group hover:border-white/20 hover:bg-white/5 transition-all duration-500 relative overflow-hidden"
-            >
-              {/* Poet Image */}
-              <div className="flex-shrink-0 relative z-10">
-                <PoetImage 
-                  poetName={insight.poet} 
-                  className="w-16 h-16"
-                />
-              </div>
-
-              <div className="flex-1 min-w-0 flex flex-col justify-center relative z-10">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <h5 className="text-base font-bold text-amber-50 truncate">{insight.poet}</h5>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900/30 text-amber-200 border border-amber-700/30 font-medium tracking-wide">
-                      {insight.mood}
-                    </span>
-                  </div>
-                  <button 
-                    onClick={() => handleCopy(insight.content, `poet-${idx}`)}
-                    className="text-amber-200/60 hover:text-amber-50 transition-colors opacity-0 group-hover:opacity-100"
-                    title="Copy insight"
-                  >
-                    {copiedTextId === `poet-${idx}` ? <Check size={14} className="text-amber-400" /> : <Copy size={14} />}
-                  </button>
+          {result.bhashaInsights && result.bhashaInsights.length > 0 ? (
+            result.bhashaInsights.map((insight, idx) => (
+              <div 
+                key={idx} 
+                className="glass-card rounded-2xl p-5 border border-white/5 flex gap-5 group hover:border-white/20 hover:bg-white/5 transition-all duration-500 relative overflow-hidden"
+              >
+                {/* Poet Image */}
+                <div className="flex-shrink-0 relative z-10">
+                  <PoetImage 
+                    poetName={insight.poet} 
+                    className="w-16 h-16"
+                  />
                 </div>
-                <p className="text-sm text-amber-100 leading-relaxed font-serif italic border-l-2 border-amber-600/20 pl-3">
-                  "{insight.content}"
-                </p>
+
+                <div className="flex-1 min-w-0 flex flex-col justify-center relative z-10">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <h5 className="text-base font-bold text-amber-50 truncate">{insight.poet}</h5>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900/30 text-amber-200 border border-amber-700/30 font-medium tracking-wide">
+                        {insight.mood}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => handleCopy(insight.content, `poet-${idx}`)}
+                      className="text-amber-200/60 hover:text-amber-50 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Copy insight"
+                    >
+                      {copiedTextId === `poet-${idx}` ? <Check size={14} className="text-amber-400" /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                  <p className="text-sm text-amber-100 leading-relaxed font-serif italic border-l-2 border-amber-600/20 pl-3 break-words">
+                    "{insight.content}"
+                  </p>
+                </div>
               </div>
+            ))
+          ) : (
+            <div className="glass-card rounded-2xl p-6 border border-amber-800/20 text-center">
+              <Feather size={24} className="text-amber-500/50 mx-auto mb-3" />
+              <p className="text-sm text-amber-200/70">
+                {result.recognizedText && result.recognizedText.trim() 
+                  ? "কবি-দৃষ্টিভঙ্গি তৈরি হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন। (Generating poet perspectives... Please wait.)"
+                  : "কবি-দৃষ্টিভঙ্গি পাওয়া যায়নি। (Poet perspectives not available.)"}
+              </p>
             </div>
-          ))}
+          )}
         </div>
       </div>
 

@@ -155,8 +155,8 @@ const App: React.FC = () => {
   // Helper to determine if a section is active
   const isSectionActive = (section: 'INPUT' | 'ANALYSIS' | 'CHAT') => {
     if (step === 'ALL') return true;
-    // Keep INPUT section active when switching between input modes
-    if (section === 'INPUT' && step === 'INPUT') return true;
+    // INPUT section should ALWAYS be active - users should always be able to switch between input modes
+    if (section === 'INPUT') return true;
     // Keep sections active if results are present (for ANALYSIS and CHAT)
     if (result && !isLoading && (section === 'ANALYSIS' || section === 'CHAT')) return true;
     return step === section;

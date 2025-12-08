@@ -73,16 +73,20 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
        - **ONLY recognize Bengali characters** (বাংলা অক্ষর: অ-হ, ০-৯)
        - If the text contains ANY non-Bengali characters (English letters, numbers, symbols, etc.), set recognizedText to an empty string "" and confidence to 0.
        - If you cannot clearly identify Bengali text, return empty recognizedText.
+       - **IMPORTANT**: Recognize the FULL text, even if it is long. Do not truncate or shorten the recognized text.
     
     2. **Language Validation (MANDATORY)**:
        - Check if the recognized text contains ONLY Bengali characters (Bengali script: অ-হ, ০-৯, and Bengali punctuation).
        - If ANY English letters (A-Z, a-z), Arabic numerals (0-9), or other non-Bengali characters are detected, the text is INVALID.
        - Only proceed with analysis if the text is 100% Bengali.
     
-    3. **Literary Analysis (BENGALI ONLY)**:
+    3. **Literary Analysis (BENGALI ONLY - CRITICAL FOR LONG TEXTS)**:
        - **ONLY** if the recognized text is valid Bengali:
-         - If the text is a **Question**, answer it in the styles of three legendary Bengali poets.
-         - If the text is a **Word or Statement**, provide a poetic reflection or meaning in the styles of these poets.
+         - **MANDATORY**: You MUST ALWAYS generate exactly 3 poet responses in bhashaInsights array, regardless of text length.
+         - For **longer texts**: Provide comprehensive poetic reflections that address the full meaning and themes of the text.
+         - If the text is a **Question**, answer it completely in the styles of three legendary Bengali poets.
+         - If the text is a **Word or Statement**, provide a detailed poetic reflection or meaning in the styles of these poets.
+         - **DO NOT skip poet responses for long texts**. Long texts require MORE detailed analysis, not less.
        - **IF TEXT IS NOT BENGALI**: Return an EMPTY array [] for bhashaInsights. Do NOT provide any poet responses.
     
     4. **Prediction (Follow-up Questions - BENGALI ONLY)**:
@@ -93,14 +97,16 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
        - **IF TEXT IS NOT BENGALI**: Return an EMPTY array [] for suggestedQuestions.
     
     **The Personas (for bhashaInsights only - BENGALI TEXT REQUIRED):**
-    - **Rabindranath Tagore**: Philosophical, spiritual, nature-focused, profound, universalism.
-    - **Kazi Nazrul Islam**: Revolutionary, passionate, rebellious, energetic, breaking barriers.
-    - **Jasim Uddin**: Folk, rural, simple, emotional, connected to the soil and village life.
+    - **Rabindranath Tagore**: Philosophical, spiritual, nature-focused, profound, universalism. For longer texts, provide deeper philosophical reflections.
+    - **Kazi Nazrul Islam**: Revolutionary, passionate, rebellious, energetic, breaking barriers. For longer texts, explore the revolutionary themes more thoroughly.
+    - **Jasim Uddin**: Folk, rural, simple, emotional, connected to the soil and village life. For longer texts, connect to the emotional and cultural depth.
     
     **STRICT ENFORCEMENT**:
     - If recognizedText is empty or contains non-Bengali characters: bhashaInsights = [], suggestedQuestions = [], confidence = 0.
     - All poet responses MUST be in Bengali. If input is not Bengali, return empty arrays.
     - Ensure the "content" for each poet is distinct and captures their unique voice (only for Bengali inputs).
+    - **CRITICAL**: For long texts, generate FULL and COMPREHENSIVE poet responses. Do not truncate or shorten responses.
+    - **REQUIRED**: The bhashaInsights array MUST contain exactly 3 items for valid Bengali text, regardless of length.
     `;
 
     const response = await ai.models.generateContent({
@@ -119,7 +125,11 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
             },
           },
           {
-            text: "Analyze this handwriting. IMPORTANT: Only recognize Bengali text. If the text contains any non-Bengali characters (English, numbers, symbols), return empty recognizedText and empty arrays for bhashaInsights and suggestedQuestions. Only provide poet responses if the text is 100% Bengali.",
+            text: `Analyze this handwriting. IMPORTANT: 
+1. Only recognize Bengali text. If the text contains any non-Bengali characters (English, numbers, symbols), return empty recognizedText and empty arrays for bhashaInsights and suggestedQuestions. 
+2. Only provide poet responses if the text is 100% Bengali.
+3. **CRITICAL FOR LONG TEXTS**: If the recognized text is long, you MUST still generate complete poet responses. Long texts require MORE detailed analysis, not less. Always return exactly 3 poet insights in bhashaInsights array for valid Bengali text, regardless of text length.
+4. Ensure all poet responses are comprehensive and address the full meaning of the text, especially for longer passages.`,
           },
         ],
       },
@@ -129,7 +139,14 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
     const processingTime = Math.round(endTime - startTime);
 
     if (response.text) {
-      const data = JSON.parse(response.text);
+      let data;
+      try {
+        data = JSON.parse(response.text);
+      } catch (parseError) {
+        console.error("JSON Parse Error:", parseError);
+        // Try to extract partial data if JSON is malformed
+        throw new Error("Failed to parse response as JSON");
+      }
       
       // Additional validation: Check if recognized text contains non-Bengali characters
       const recognizedText = data.recognizedText || "";
@@ -148,8 +165,22 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
         };
       }
       
+      // Ensure bhashaInsights is an array and has at least 3 items for valid Bengali text
+      const bhashaInsights = Array.isArray(data.bhashaInsights) ? data.bhashaInsights : [];
+      
+      // If we have valid Bengali text but no poet insights, log a warning
+      if (recognizedText.trim() && bhashaInsights.length === 0) {
+        console.warn("Valid Bengali text recognized but no poet insights generated. Text length:", recognizedText.length);
+      }
+      
+      // Ensure we have the required fields with defaults
       return {
-        ...data,
+        recognizedText: recognizedText,
+        confidence: data.confidence || 0,
+        isQuestion: data.isQuestion || false,
+        bhashaInsights: bhashaInsights,
+        suggestedQuestions: Array.isArray(data.suggestedQuestions) ? data.suggestedQuestions : [],
+        candidates: Array.isArray(data.candidates) ? data.candidates : [],
         processingTimeMs: processingTime,
       };
     } else {
