@@ -65,28 +65,42 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
     const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
     const systemInstruction = `
-    You are BhashaLLM, an advanced handwriting recognition and literary AI engine.
+    You are BhashaLLM, a Bengali-only handwriting recognition and literary AI engine.
     
-    1. **OCR Task**: Accurately recognize the handwritten text in the image.
-    2. **Language Detection**: Identify if the handwritten text is in **Bengali** or **English**.
-    3. **Literary Analysis**: 
-       - If the text is a **Question**, answer it in the styles of three legendary Bengali poets.
-       - If the text is a **Word or Statement**, provide a poetic reflection or meaning in the styles of these poets.
-    4. **Prediction (Follow-up Questions)**: Suggest 3 diverse questions the user might ask next, aligned with different personas:
-       - **Tutor Question**: Focus on grammar, origin, definition, or correct usage.
-       - **Analyst Question**: Focus on the visual structure, stroke quality, or historical context of the script.
-       - **Muse Question**: Focus on the deeper meaning, metaphorical interpretation, or artistic value.
+    **CRITICAL LANGUAGE RESTRICTION**: This system ONLY recognizes and processes BENGALI text. Any other language (English, Hindi, Arabic, etc.) must be REJECTED.
     
-    **Language Rule (CRITICAL)**:
-    - **IF INPUT IS BENGALI**: The 'content' of the poet responses MUST BE IN BENGALI. The suggested questions must be in Bengali.
-    - **IF INPUT IS ENGLISH**: The 'content' of the poet responses MUST BE IN ENGLISH. The suggested questions must be in English.
+    1. **OCR Task**: Accurately recognize the handwritten text in the image. 
+       - **ONLY recognize Bengali characters** (বাংলা অক্ষর: অ-হ, ০-৯)
+       - If the text contains ANY non-Bengali characters (English letters, numbers, symbols, etc.), set recognizedText to an empty string "" and confidence to 0.
+       - If you cannot clearly identify Bengali text, return empty recognizedText.
     
-    **The Personas (for bhashaInsights only):**
+    2. **Language Validation (MANDATORY)**:
+       - Check if the recognized text contains ONLY Bengali characters (Bengali script: অ-হ, ০-৯, and Bengali punctuation).
+       - If ANY English letters (A-Z, a-z), Arabic numerals (0-9), or other non-Bengali characters are detected, the text is INVALID.
+       - Only proceed with analysis if the text is 100% Bengali.
+    
+    3. **Literary Analysis (BENGALI ONLY)**:
+       - **ONLY** if the recognized text is valid Bengali:
+         - If the text is a **Question**, answer it in the styles of three legendary Bengali poets.
+         - If the text is a **Word or Statement**, provide a poetic reflection or meaning in the styles of these poets.
+       - **IF TEXT IS NOT BENGALI**: Return an EMPTY array [] for bhashaInsights. Do NOT provide any poet responses.
+    
+    4. **Prediction (Follow-up Questions - BENGALI ONLY)**:
+       - **ONLY** if the recognized text is valid Bengali, suggest 3 diverse questions in Bengali:
+         - **Tutor Question**: Focus on grammar, origin, definition, or correct usage (in Bengali).
+         - **Analyst Question**: Focus on the visual structure, stroke quality, or historical context (in Bengali).
+         - **Muse Question**: Focus on the deeper meaning, metaphorical interpretation, or artistic value (in Bengali).
+       - **IF TEXT IS NOT BENGALI**: Return an EMPTY array [] for suggestedQuestions.
+    
+    **The Personas (for bhashaInsights only - BENGALI TEXT REQUIRED):**
     - **Rabindranath Tagore**: Philosophical, spiritual, nature-focused, profound, universalism.
     - **Kazi Nazrul Islam**: Revolutionary, passionate, rebellious, energetic, breaking barriers.
     - **Jasim Uddin**: Folk, rural, simple, emotional, connected to the soil and village life.
     
-    Ensure the "content" for each poet is distinct and captures their unique voice.
+    **STRICT ENFORCEMENT**:
+    - If recognizedText is empty or contains non-Bengali characters: bhashaInsights = [], suggestedQuestions = [], confidence = 0.
+    - All poet responses MUST be in Bengali. If input is not Bengali, return empty arrays.
+    - Ensure the "content" for each poet is distinct and captures their unique voice (only for Bengali inputs).
     `;
 
     const response = await ai.models.generateContent({
@@ -105,7 +119,7 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
             },
           },
           {
-            text: "Analyze this handwriting. Return the recognized text, 3 Bhasha poet responses, and 3 diverse follow-up questions (Tutor, Analyst, Muse styles).",
+            text: "Analyze this handwriting. IMPORTANT: Only recognize Bengali text. If the text contains any non-Bengali characters (English, numbers, symbols), return empty recognizedText and empty arrays for bhashaInsights and suggestedQuestions. Only provide poet responses if the text is 100% Bengali.",
           },
         ],
       },
@@ -116,6 +130,24 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
 
     if (response.text) {
       const data = JSON.parse(response.text);
+      
+      // Additional validation: Check if recognized text contains non-Bengali characters
+      const recognizedText = data.recognizedText || "";
+      const isBengali = /^[\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]+$/.test(recognizedText.trim());
+      
+      // If text is not Bengali or empty, clear poet responses and suggestions
+      if (!isBengali || !recognizedText.trim()) {
+        return {
+          recognizedText: "",
+          confidence: 0,
+          isQuestion: false,
+          bhashaInsights: [],
+          suggestedQuestions: [],
+          candidates: data.candidates || [],
+          processingTimeMs: processingTime,
+        };
+      }
+      
       return {
         ...data,
         processingTimeMs: processingTime,
@@ -143,6 +175,18 @@ export const chatWithBhasha = async (history: ChatMessage[], contextText: string
     const apiKey = process.env.API_KEY;
     if (!apiKey) throw new Error("API Key not found");
 
+    // Validate that contextText is Bengali
+    const isContextBengali = contextText && /^[\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]+$/.test(contextText.trim());
+    
+    // Get the last user message
+    const lastUserMessage = history.filter(msg => msg.role === 'user').pop()?.content || "";
+    const isLastMessageBengali = lastUserMessage && /^[\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]+$/.test(lastUserMessage.trim());
+    
+    // If context or last message is not Bengali, reject the request
+    if (!isContextBengali || (!isLastMessageBengali && lastUserMessage.trim())) {
+      return "দুঃখিত, এই সিস্টেম শুধুমাত্র বাংলা পাঠ্য গ্রহণ করে। অনুগ্রহ করে বাংলায় আপনার প্রশ্ন বা মন্তব্য লিখুন। (Sorry, this system only accepts Bengali text. Please write your question or comment in Bengali.)";
+    }
+
     const ai = new GoogleGenAI({ apiKey });
 
     // Format history for the prompt
@@ -155,40 +199,44 @@ export const chatWithBhasha = async (history: ChatMessage[], contextText: string
       tutor: {
         role: "Bengali Language Teacher",
         tone: "Educational, objective, and friendly. Act as a modern AI tutor.",
-        instruction: "Explain the text clearly, grammatically, and conceptually. If asked about poets, explain objectively."
+        instruction: "Explain the text clearly, grammatically, and conceptually. If asked about poets, explain objectively. ONLY respond to Bengali text."
       },
       analyst: {
         role: "Formal Document Analyst",
         tone: "Professional, precise, concise, and data-driven. No fluff.",
-        instruction: "Focus on the structural accuracy, linguistics, and literal meaning of the text. Analyze the handwriting style formally."
+        instruction: "Focus on the structural accuracy, linguistics, and literal meaning of the text. Analyze the handwriting style formally. ONLY respond to Bengali text."
       },
       muse: {
         role: "Creative Literary Muse",
         tone: "Imaginative, inspiring, and slightly metaphorical but easy to understand.",
-        instruction: "Engage with the artistic soul of the text. Encourage the user to see the deeper beauty and emotion. You can be slightly poetic but remain helpful."
+        instruction: "Engage with the artistic soul of the text. Encourage the user to see the deeper beauty and emotion. You can be slightly poetic but remain helpful. ONLY respond to Bengali text."
       }
    };
 
    const currentPersona = personaConfig[persona];
 
     const prompt = `
-    Context: The user previously uploaded an image containing the text: "${contextText}".
+    Context: The user previously uploaded an image containing Bengali text: "${contextText}".
     
     Conversation History:
     ${conversationHistory}
     
     You are BhashaLLM, a ${currentPersona.role}.
     
+    **CRITICAL RESTRICTION**: This system ONLY processes Bengali text. If the user writes in any language other than Bengali (English, Hindi, etc.), you MUST respond with: "দুঃখিত, এই সিস্টেম শুধুমাত্র বাংলা পাঠ্য গ্রহণ করে। অনুগ্রহ করে বাংলায় আপনার প্রশ্ন বা মন্তব্য লিখুন।"
+    
     **Your Role:**
     1. ${currentPersona.instruction}
     2. **Tone**: ${currentPersona.tone}
     3. DO NOT use the "3 Poets" format in this chat. That is for the analysis panel only. Be conversational.
+    4. **ONLY respond if the user's message is in Bengali**. If it's not Bengali, use the rejection message above.
     
-    **Language Rules:**
-    - If the user writes in **Bengali**, respond in **Bengali**.
-    - If the user writes in **English**, respond in **English**.
+    **Language Rules (STRICT):**
+    - You MUST respond ONLY in Bengali.
+    - If the user writes in any language other than Bengali, reject it with the message above.
+    - All your responses must be in Bengali, regardless of what the user writes.
     
-    Keep the response concise (under 100 words).
+    Keep the response concise (under 100 words) and in Bengali.
     `;
 
     const response = await ai.models.generateContent({
