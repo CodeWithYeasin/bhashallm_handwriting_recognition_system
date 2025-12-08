@@ -53,16 +53,29 @@ const recognitionSchema: Schema = {
 export const analyzeHandwriting = async (base64Image: string): Promise<RecognitionResult> => {
   const startTime = performance.now();
   
+  console.log("analyzeHandwriting: Starting Gemini API call", {
+    inputLength: base64Image.length,
+    inputPreview: base64Image.substring(0, 50),
+    timestamp: new Date().toISOString()
+  });
+  
   try {
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
+      console.error("analyzeHandwriting: API Key not found");
       throw new Error("API Key not found");
     }
 
+    console.log("analyzeHandwriting: API Key found, initializing GoogleGenAI");
     const ai = new GoogleGenAI({ apiKey });
 
     // Clean base64 string if it contains metadata header
     const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+    console.log("analyzeHandwriting: Base64 cleaned", {
+      originalLength: base64Image.length,
+      cleanedLength: cleanBase64.length,
+      hasHeader: base64Image !== cleanBase64
+    });
 
     const systemInstruction = `
     You are BhashaLLM, a Bengali-only handwriting recognition and literary AI engine.
@@ -109,6 +122,7 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
     - **REQUIRED**: The bhashaInsights array MUST contain exactly 3 items for valid Bengali text, regardless of length.
     `;
 
+    console.log("analyzeHandwriting: Sending request to Gemini API...");
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       config: {
@@ -133,6 +147,12 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
           },
         ],
       },
+    });
+    
+    console.log("analyzeHandwriting: Gemini API response received", {
+      hasResponse: !!response,
+      hasText: !!response.text,
+      responseLength: response.text?.length || 0
     });
 
     const endTime = performance.now();

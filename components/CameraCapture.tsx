@@ -60,6 +60,11 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       
+      console.log("CameraCapture: handleCapture called", {
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight
+      });
+      
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
@@ -67,8 +72,20 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = canvas.toDataURL('image/png');
+        console.log("CameraCapture: Image captured", {
+          imageDataLength: imageData.length,
+          canvasWidth: canvas.width,
+          canvasHeight: canvas.height
+        });
         onCapture(imageData);
+      } else {
+        console.error("CameraCapture: Failed to get canvas context");
       }
+    } else {
+      console.error("CameraCapture: Video or canvas ref not available", {
+        hasVideo: !!videoRef.current,
+        hasCanvas: !!canvasRef.current
+      });
     }
   };
 

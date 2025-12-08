@@ -77,7 +77,16 @@ const App: React.FC = () => {
   }, [step]);
 
   const handleAnalyze = async (imageData: string | null) => {
-    if (!imageData) return;
+    if (!imageData) {
+      console.warn("handleAnalyze: No image data provided");
+      return;
+    }
+    
+    console.log("handleAnalyze: Starting analysis", {
+      imageDataLength: imageData.length,
+      imageDataType: imageData.substring(0, 30),
+      timestamp: new Date().toISOString()
+    });
     
     // Transition to Phase 2: Analysis Active
     setStep('ANALYSIS');
@@ -85,7 +94,14 @@ const App: React.FC = () => {
     setResult(null);
     
     try {
+      console.log("handleAnalyze: Calling analyzeHandwriting API...");
       const data = await analyzeHandwriting(imageData);
+      console.log("handleAnalyze: API response received", {
+        recognizedText: data.recognizedText?.substring(0, 50) || "empty",
+        confidence: data.confidence,
+        bhashaInsightsCount: data.bhashaInsights?.length || 0,
+        processingTime: data.processingTimeMs
+      });
       setResult(data);
       setStep('CHAT'); // Automatic transition to Chat
     } catch (error) {
@@ -97,6 +113,11 @@ const App: React.FC = () => {
 
   const onCanvasSubmit = () => {
     const dataUrl = canvasRef.current?.getDataUrl();
+    console.log("onCanvasSubmit: Canvas data URL", {
+      hasDataUrl: !!dataUrl,
+      dataUrlLength: dataUrl?.length || 0,
+      source: "DRAWING_CANVAS"
+    });
     handleAnalyze(dataUrl || null);
   };
 
@@ -130,18 +151,38 @@ const App: React.FC = () => {
     e.stopPropagation();
     const file = e.target.files?.[0];
     if (file) {
+      console.log("handleFileUpload: File selected", {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        source: "FILE_UPLOAD"
+      });
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
+        console.log("handleFileUpload: File read complete", {
+          resultLength: result?.length || 0,
+          resultType: result?.substring(0, 30)
+        });
         setUploadedImage(result);
         // Only trigger analysis when file is actually selected, not when switching tabs
         handleAnalyze(result);
       };
+      reader.onerror = (error) => {
+        console.error("handleFileUpload: FileReader error", error);
+      };
       reader.readAsDataURL(file);
+    } else {
+      console.warn("handleFileUpload: No file selected");
     }
   };
 
   const handleCameraCapture = (imageData: string) => {
+    console.log("handleCameraCapture: Camera image captured", {
+      imageDataLength: imageData?.length || 0,
+      imageDataType: imageData?.substring(0, 30),
+      source: "CAMERA_CAPTURE"
+    });
     handleAnalyze(imageData);
   };
 
