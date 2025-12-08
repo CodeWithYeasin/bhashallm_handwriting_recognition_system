@@ -305,24 +305,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
         </div>
       </div>
 
-      {/* Recognized Text Context Display */}
-      {contextText && contextText.trim() && (
-        <div className="absolute top-16 left-0 right-0 px-6 z-10 pointer-events-none">
-          <div className="pointer-events-auto bg-amber-900/30 border border-amber-700/30 rounded-xl p-3 backdrop-blur-md shadow-lg max-h-48 overflow-y-auto custom-scrollbar">
-            <div className="flex items-start gap-2">
-              <div className="flex-shrink-0 mt-0.5">
-                <FileText size={14} className="text-amber-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1">Recognized Text:</p>
-                <p className="text-xs text-amber-100 leading-relaxed break-words select-text">
-                  {contextText}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Messages Stream */}
       <div className="flex-1 overflow-y-auto p-4 md:px-20 pt-20 pb-4 space-y-8 custom-scrollbar">
@@ -338,11 +320,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
                 <p className="text-amber-200/60 text-sm">
                    Using {getPersonaLabel(persona)} Persona
                 </p>
-                {contextText && contextText.trim() && (
-                  <p className="text-amber-300/70 text-xs mt-2 px-4 break-words">
-                    Ready to analyze: "{contextText.length > 100 ? contextText.substring(0, 100) + '...' : contextText}"
-                  </p>
-                )}
              </div>
           </div>
         )}
