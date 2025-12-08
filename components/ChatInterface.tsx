@@ -56,17 +56,35 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
   }, [messages, isLoading, suggestions]);
 
   useEffect(() => {
-    if (contextText && contextText !== lastProcessedTextRef.current) {
+    if (contextText && contextText.trim() && contextText !== lastProcessedTextRef.current) {
       lastProcessedTextRef.current = contextText;
-      const initialUserMsg: ChatMessage = { role: 'user', content: contextText, timestamp: Date.now() };
+      // Create a user message that explicitly asks for analysis
+      const analysisRequest = `এই পাঠ্যটি বিশ্লেষণ করুন: "${contextText}"`;
+      const initialUserMsg: ChatMessage = { role: 'user', content: analysisRequest, timestamp: Date.now() };
       setMessages([initialUserMsg]);
       setIsLoading(true);
 
       chatWithBhasha([initialUserMsg], contextText, persona)
         .then(responseText => {
-          setMessages(prev => [...prev, { role: 'model', content: responseText, timestamp: Date.now() }]);
+          if (responseText && responseText.trim()) {
+            setMessages(prev => [...prev, { role: 'model', content: responseText.trim(), timestamp: Date.now() }]);
+          } else {
+            // Fallback if response is empty
+            setMessages(prev => [...prev, { 
+              role: 'model', 
+              content: "দুঃখিত, আমি এখনই আপনার প্রশ্নের উত্তর দিতে পারছি না। অনুগ্রহ করে আবার চেষ্টা করুন।", 
+              timestamp: Date.now() 
+            }]);
+          }
         })
-        .catch(err => console.error("Auto-chat failed", err))
+        .catch(err => {
+          console.error("Auto-chat failed", err);
+          setMessages(prev => [...prev, { 
+            role: 'model', 
+            content: "দুঃখিত, একটি ত্রুটি হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন। (Sorry, an error occurred. Please try again.)", 
+            timestamp: Date.now() 
+          }]);
+        })
         .finally(() => setIsLoading(false));
     } else if (!contextText && lastProcessedTextRef.current) {
       lastProcessedTextRef.current = '';
@@ -158,14 +176,37 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
     setAttachedFile(null);
     setIsLoading(true);
 
-    if (attachedFile) {
-        await new Promise(resolve => setTimeout(resolve, 800));
-    }
+    try {
+      if (attachedFile) {
+          await new Promise(resolve => setTimeout(resolve, 800));
+      }
 
-    const responseText = await chatWithBhasha([...messages, userMsg], contextText, persona);
-    const botMsg: ChatMessage = { role: 'model', content: responseText, timestamp: Date.now() };
-    setMessages(prev => [...prev, botMsg]);
-    setIsLoading(false);
+      const responseText = await chatWithBhasha([...messages, userMsg], contextText, persona);
+      
+      // Ensure we have a valid response
+      if (responseText && responseText.trim()) {
+        const botMsg: ChatMessage = { role: 'model', content: responseText.trim(), timestamp: Date.now() };
+        setMessages(prev => [...prev, botMsg]);
+      } else {
+        // Fallback if response is empty
+        const errorMsg: ChatMessage = { 
+          role: 'model', 
+          content: "দুঃখিত, আমি এখনই আপনার প্রশ্নের উত্তর দিতে পারছি না। অনুগ্রহ করে আবার চেষ্টা করুন।", 
+          timestamp: Date.now() 
+        };
+        setMessages(prev => [...prev, errorMsg]);
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      const errorMsg: ChatMessage = { 
+        role: 'model', 
+        content: "দুঃখিত, একটি ত্রুটি হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন। (Sorry, an error occurred. Please try again.)", 
+        timestamp: Date.now() 
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -203,8 +244,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
     }
   };
 
+  // Calculate dynamic height based on content
+  const messageCount = messages.length;
+  const hasContext = contextText && contextText.trim();
+  const baseHeight = 500; // Base height
+  const contextHeight = hasContext ? 80 : 0; // Height for context display
+  const messageHeight = Math.min(messageCount * 100, 400); // Max 400px for messages
+  const dynamicHeight = Math.max(baseHeight, baseHeight + contextHeight + messageHeight);
+  const finalHeight = Math.min(dynamicHeight, 900); // Cap at 900px
+
   return (
-    <div className="rounded-3xl border border-white/5 shadow-2xl flex flex-col h-[700px] overflow-hidden bg-[#0b0c0e] relative">
+    <div 
+      className="rounded-3xl border border-white/5 shadow-2xl flex flex-col overflow-hidden bg-[#0b0c0e] relative transition-all duration-300"
+      style={{ height: `${finalHeight}px`, minHeight: '500px', maxHeight: '900px' }}
+    >
       
       {/* Header - Minimalist with Persona Selector */}
       <div className="absolute top-0 left-0 right-0 p-6 z-10 flex justify-between items-start pointer-events-none">
@@ -250,6 +303,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
         </div>
       </div>
 
+      {/* Recognized Text Context Display */}
+      {contextText && contextText.trim() && (
+        <div className="absolute top-16 left-0 right-0 px-6 z-10 pointer-events-none">
+          <div className="pointer-events-auto bg-amber-900/30 border border-amber-700/30 rounded-xl p-3 backdrop-blur-md shadow-lg max-h-32 overflow-y-auto custom-scrollbar">
+            <div className="flex items-start gap-2">
+              <div className="flex-shrink-0 mt-0.5">
+                <FileText size={14} className="text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1">Recognized Text:</p>
+                <p className="text-xs text-amber-100 leading-relaxed break-words line-clamp-3">
+                  {contextText}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Messages Stream */}
       <div className="flex-1 overflow-y-auto p-4 md:px-20 pt-20 pb-4 space-y-8 custom-scrollbar">
         {messages.length === 0 && (
@@ -264,6 +336,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
                 <p className="text-amber-200/60 text-sm">
                    Using {getPersonaLabel(persona)} Persona
                 </p>
+                {contextText && contextText.trim() && (
+                  <p className="text-amber-300/70 text-xs mt-2 px-4">
+                    Ready to analyze: "{contextText.substring(0, 50)}{contextText.length > 50 ? '...' : ''}"
+                  </p>
+                )}
              </div>
           </div>
         )}

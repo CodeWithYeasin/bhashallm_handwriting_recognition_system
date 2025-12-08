@@ -162,10 +162,30 @@ const App: React.FC = () => {
     return step === section;
   }
 
+  // Helper to calculate dynamic height based on content
+  const getDynamicHeight = (section: 'INPUT' | 'ANALYSIS' | 'CHAT') => {
+    if (section === 'CHAT') {
+      const messageCount = result ? 2 : 0; // Approximate message count
+      const baseHeight = 500;
+      const contextHeight = result?.recognizedText ? 80 : 0;
+      return Math.min(Math.max(baseHeight + contextHeight + (messageCount * 50), 500), 900);
+    }
+    if (section === 'ANALYSIS') {
+      const textLength = result?.recognizedText?.length || 0;
+      const insightsCount = result?.bhashaInsights?.length || 0;
+      const baseHeight = 400;
+      const textHeight = Math.min(textLength * 0.5, 200); // Max 200px for text
+      const insightsHeight = insightsCount * 150; // ~150px per insight
+      return Math.min(Math.max(baseHeight + textHeight + insightsHeight, 500), 900);
+    }
+    return 650; // Default for INPUT
+  };
+
   // Helper to get section styling
   const getSectionStyles = (section: 'INPUT' | 'ANALYSIS' | 'CHAT') => {
     const active = isSectionActive(section);
-    return `transition-all duration-700 ease-in-out transform border rounded-3xl overflow-hidden relative shadow-2xl h-[650px]
+    const dynamicHeight = getDynamicHeight(section);
+    return `transition-all duration-700 ease-in-out transform border rounded-3xl overflow-hidden relative shadow-2xl
       ${active 
         ? 'opacity-100 scale-100 shadow-[0_0_50px_-10px_rgba(139,69,19,0.15)] border-amber-700/30 grayscale-0 z-10' 
         : 'opacity-40 scale-[0.98] shadow-none border-white/5 grayscale pointer-events-none'
@@ -453,7 +473,7 @@ const App: React.FC = () => {
             <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 transition-colors duration-500 ${isSectionActive('CHAT') ? 'text-amber-400' : 'text-amber-200/50'}`}>
                {getHeadingText('CHAT')}
             </h2>
-            <div className={getSectionStyles('CHAT')}>
+            <div className={getSectionStyles('CHAT')} style={{ height: `${getDynamicHeight('CHAT')}px` }}>
                 <div className="glass-panel overflow-hidden flex flex-col h-full">
                     <ChatInterface 
                         contextText={result?.recognizedText || ''} 
@@ -469,7 +489,7 @@ const App: React.FC = () => {
             <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 transition-colors duration-500 ${isSectionActive('ANALYSIS') ? 'text-amber-500' : 'text-amber-200/50'}`}>
                {getHeadingText('ANALYSIS')}
             </h2>
-            <div className={getSectionStyles('ANALYSIS')}>
+            <div className={getSectionStyles('ANALYSIS')} style={{ height: `${getDynamicHeight('ANALYSIS')}px` }}>
                 <div className="glass-panel overflow-hidden flex flex-col h-full shadow-[0_0_40px_-10px_rgba(0,0,0,0.3)]">
                     {/* Analysis Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-black/20">
