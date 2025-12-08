@@ -214,16 +214,53 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
   };
 
   return (
-    <div ref={containerRef} className={`w-full h-full relative overflow-hidden group/canvas`}>
+    <div 
+      ref={containerRef} 
+      className={`w-full h-full relative overflow-hidden group/canvas`}
+      onWheel={(e) => {
+        // Prevent page scroll when scrolling on canvas
+        if (e.currentTarget.contains(e.target as Node)) {
+          e.stopPropagation();
+        }
+      }}
+    >
       <canvas
         ref={canvasRef}
-        onMouseDown={startDrawing}
-        onMouseUp={finishDrawing}
-        onMouseMove={draw}
-        onMouseLeave={finishDrawing}
-        onTouchStart={startDrawing}
-        onTouchEnd={finishDrawing}
-        onTouchMove={draw}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          startDrawing(e);
+        }}
+        onMouseUp={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          finishDrawing();
+        }}
+        onMouseMove={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          draw(e);
+        }}
+        onMouseLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          finishDrawing();
+        }}
+        onTouchStart={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          startDrawing(e);
+        }}
+        onTouchEnd={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          finishDrawing();
+        }}
+        onTouchMove={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          draw(e);
+        }}
         className={`touch-none block w-full h-full ${isAnalyzing ? 'cursor-wait' : ''}`}
       />
       

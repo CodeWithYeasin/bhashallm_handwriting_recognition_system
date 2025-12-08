@@ -300,7 +300,12 @@ const App: React.FC = () => {
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 setTool('pen');
+                            }}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                             }}
                             className={`p-2.5 rounded-lg transition-all ${tool === 'pen' ? 'bg-amber-600/20 text-amber-300 ring-1 ring-amber-600/50' : 'text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20'}`}
                             >
@@ -311,7 +316,12 @@ const App: React.FC = () => {
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 setTool('eraser');
+                            }}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                             }}
                             className={`p-2.5 rounded-lg transition-all ${tool === 'eraser' ? 'bg-amber-800/20 text-amber-300 ring-1 ring-amber-800/50' : 'text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20'}`}
                             >
@@ -326,7 +336,23 @@ const App: React.FC = () => {
                             min="2" 
                             max="20" 
                             value={brushSize} 
-                            onChange={(e) => setBrushSize(Number(e.target.value))}
+                            onChange={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setBrushSize(Number(e.target.value));
+                            }}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
+                            onMouseUp={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
                             className="w-24 accent-amber-600 h-1 bg-amber-900/40 rounded-full appearance-none cursor-pointer"
                             />
                         </div>
@@ -337,8 +363,13 @@ const App: React.FC = () => {
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 onUndoCanvas();
-                            }} 
+                            }}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
                             className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
                             title="Undo">
                             <Undo size={18} />
@@ -348,8 +379,13 @@ const App: React.FC = () => {
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 onRedoCanvas();
-                            }} 
+                            }}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
                             className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
                             title="Redo">
                             <Redo size={18} />
@@ -360,8 +396,13 @@ const App: React.FC = () => {
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 onDownloadCanvas();
-                            }} 
+                            }}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
                             className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" 
                             title="Download">
                             <Download size={18} />
@@ -387,7 +428,12 @@ const App: React.FC = () => {
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 onClearCanvas();
+                            }}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                             }}
                             className="px-5 py-3 text-amber-200/70 hover:text-red-400 hover:bg-red-500/10 rounded-xl text-sm font-medium transition-colors border border-amber-800/20 hover:border-red-500/20"
                         >
@@ -398,7 +444,12 @@ const App: React.FC = () => {
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 onCanvasSubmit();
+                            }}
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                             }}
                             disabled={isLoading}
                             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-white rounded-xl text-sm font-bold tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-900/20 active:scale-[0.98] border border-white/10"
