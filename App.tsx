@@ -164,8 +164,7 @@ const App: React.FC = () => {
           resultType: result?.substring(0, 30)
         });
         setUploadedImage(result);
-        // Only trigger analysis when file is actually selected, not when switching tabs
-        handleAnalyze(result);
+        // Don't automatically analyze - let user preview first
       };
       reader.onerror = (error) => {
         console.error("handleFileUpload: FileReader error", error);
@@ -173,6 +172,13 @@ const App: React.FC = () => {
       reader.readAsDataURL(file);
     } else {
       console.warn("handleFileUpload: No file selected");
+    }
+  };
+
+  const handleUploadSubmit = () => {
+    if (uploadedImage) {
+      console.log("handleUploadSubmit: Submitting uploaded image for analysis");
+      handleAnalyze(uploadedImage);
     }
   };
 
@@ -639,20 +645,57 @@ const App: React.FC = () => {
                     {inputMode === InputMode.UPLOAD && (
                     <div className="h-full flex flex-col items-center justify-center p-8 relative">
                         {uploadedImage ? (
-                        <div className="relative w-full h-full flex items-center justify-center rounded-2xl border border-white/10 bg-black/20 backdrop-blur overflow-hidden">
-                            <img src={uploadedImage} alt="Uploaded" className="max-w-full max-h-full object-contain shadow-2xl" />
-                            <button 
-                            type="button"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setUploadedImage(null); 
-                                if (fileInputRef.current) fileInputRef.current.value = ''; 
-                            }}
-                            className="absolute top-4 right-4 bg-black/60 text-white p-2 rounded-full hover:bg-red-500/80 transition-colors backdrop-blur border border-white/10"
-                            >
-                            <Trash2 size={20} />
-                            </button>
+                        <div className="w-full h-full flex flex-col">
+                            <div className="relative flex-1 flex items-center justify-center rounded-2xl border border-white/10 bg-black/20 backdrop-blur overflow-hidden mb-4">
+                                <img src={uploadedImage} alt="Uploaded" className="max-w-full max-h-full object-contain shadow-2xl" />
+                                <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setUploadedImage(null);
+                                    if (fileInputRef.current) fileInputRef.current.value = '';
+                                }}
+                                className="absolute top-4 right-4 bg-black/60 text-white p-2 rounded-full hover:bg-red-500/80 transition-colors backdrop-blur border border-white/10"
+                                >
+                                <Trash2 size={20} />
+                                </button>
+                            </div>
+                            <div className="flex gap-4">
+                                <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setUploadedImage(null);
+                                    if (fileInputRef.current) fileInputRef.current.value = '';
+                                }}
+                                className="px-5 py-3 text-amber-200/70 hover:text-red-400 hover:bg-red-500/10 rounded-xl text-sm font-medium transition-colors border border-amber-800/20 hover:border-red-500/20"
+                                >
+                                Clear Image
+                                </button>
+                                <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (!isLoading) {
+                                        handleUploadSubmit();
+                                    }
+                                }}
+                                disabled={isLoading}
+                                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-white rounded-xl text-sm font-bold tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-900/20 active:scale-[0.98] border border-white/10"
+                                >
+                                    {isLoading ? (
+                                    <span className="flex items-center gap-2"><Sparkles className="animate-spin w-4 h-4" /> Processing...</span>
+                                    ) : (
+                                    <>
+                                        <Send size={16} />
+                                        Analyze Text
+                                    </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                         ) : (
                         <div className="text-center w-full h-full border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center hover:border-amber-600/50 hover:bg-amber-600/5 transition-all group">
