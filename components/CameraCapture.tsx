@@ -78,17 +78,17 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-black text-slate-300 p-8 text-center">
+      <div className="flex flex-col items-center justify-center h-full bg-black text-amber-50 p-8 text-center">
         <div className="bg-red-500/10 p-4 rounded-full mb-4 border border-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
             <XCircle size={40} className="text-red-500" />
         </div>
-        <h3 className="text-lg font-bold text-white mb-2">Camera Error</h3>
-        <p className="text-sm text-slate-400 mb-6 max-w-sm">{error}</p>
+        <h3 className="text-lg font-bold text-amber-50 mb-2">Camera Error</h3>
+        <p className="text-sm text-amber-200/80 mb-6 max-w-sm">{error}</p>
         
         {error.includes("denied") && (
-          <div className="text-xs text-left bg-white/5 p-4 rounded-xl border border-white/10 mb-6 max-w-xs backdrop-blur-sm">
-            <p className="font-bold text-slate-200 mb-2">To enable camera:</p>
-            <ol className="list-decimal pl-5 space-y-1 text-slate-400">
+          <div className="text-xs text-left bg-amber-900/20 p-4 rounded-xl border border-amber-700/20 mb-6 max-w-xs backdrop-blur-sm">
+            <p className="font-bold text-amber-50 mb-2">To enable camera:</p>
+            <ol className="list-decimal pl-5 space-y-1 text-amber-200/70">
               <li>Click the lock icon in the address bar</li>
               <li>Toggle Camera permission to 'Allow'</li>
               <li>Refresh the page</li>
@@ -122,10 +122,10 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
         {/* Scanner Overlay UI */}
         <div className="absolute inset-8 border border-white/20 rounded-3xl pointer-events-none">
            {/* Corners */}
-           <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-cyan-500 rounded-tl-xl"></div>
-           <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-cyan-500 rounded-tr-xl"></div>
-           <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-cyan-500 rounded-bl-xl"></div>
-           <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-cyan-500 rounded-br-xl"></div>
+           <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-amber-600 rounded-tl-xl"></div>
+           <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-amber-600 rounded-tr-xl"></div>
+           <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-amber-600 rounded-bl-xl"></div>
+           <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-amber-600 rounded-br-xl"></div>
            
            {/* Center Crosshair */}
            <div className="absolute inset-0 flex items-center justify-center opacity-30">
@@ -138,10 +138,10 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
            <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-20">
              <div className="flex flex-col items-center gap-4">
                <div className="relative">
-                 <div className="w-12 h-12 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin"></div>
-                 <Aperture size={24} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-cyan-500 animate-pulse" />
+                 <div className="w-12 h-12 border-4 border-amber-600/30 border-t-amber-600 rounded-full animate-spin"></div>
+                 <Aperture size={24} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-600 animate-pulse" />
                </div>
-               <span className="text-cyan-400 text-xs font-bold tracking-widest uppercase">Initializing Sensor...</span>
+               <span className="text-amber-500 text-xs font-bold tracking-widest uppercase">Initializing Sensor...</span>
              </div>
            </div>
         )}
@@ -155,7 +155,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture }) => {
             className="group relative flex items-center justify-center w-20 h-20 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md transition-all focus:outline-none border border-white/20 shadow-2xl"
             title="Capture"
           >
-            <div className="w-16 h-16 rounded-full border-4 border-cyan-400 group-hover:bg-cyan-400/20 group-hover:scale-95 transition-all"></div>
+            <div className="w-16 h-16 rounded-full border-4 border-amber-600 group-hover:bg-amber-600/20 group-hover:scale-95 transition-all"></div>
           </button>
         )}
       </div>

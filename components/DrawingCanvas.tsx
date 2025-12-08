@@ -34,7 +34,7 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
     propsRef.current = { tool, brushSize, color };
     if (contextRef.current) {
         contextRef.current.lineWidth = brushSize;
-        contextRef.current.strokeStyle = tool === 'eraser' ? '#0f172a' : color;
+        contextRef.current.strokeStyle = tool === 'eraser' ? '#1a0f05' : color;
     }
   }, [tool, brushSize, color]);
 
@@ -109,10 +109,10 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
         
         const p = propsRef.current;
         ctx.lineWidth = p.brushSize;
-        ctx.strokeStyle = p.tool === 'eraser' ? '#0f172a' : p.color;
+        ctx.strokeStyle = p.tool === 'eraser' ? '#1a0f05' : p.color;
 
         // Fill background
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = '#1a0f05';
         ctx.fillRect(0, 0, width, height);
         
         // Restore Image
@@ -150,7 +150,7 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
       const ctx = contextRef.current;
       const container = containerRef.current;
       if (canvas && ctx && container) {
-        ctx.fillStyle = '#0f172a'; 
+        ctx.fillStyle = '#1a0f05'; 
         const { width, height } = container.getBoundingClientRect();
         ctx.fillRect(0, 0, width, height);
         saveSnapshot();
@@ -233,8 +233,8 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
           onClick={() => setIsHistoryOpen(!isHistoryOpen)}
           className={`p-2.5 rounded-xl backdrop-blur-md transition-all border shadow-lg ${
             isHistoryOpen 
-              ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' 
-              : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-white'
+              ? 'bg-amber-600/20 text-amber-300 border-amber-600/30' 
+              : 'bg-amber-900/20 text-amber-200/60 border-amber-700/20 hover:bg-amber-800/30 hover:text-amber-50'
           }`}
           title="Toggle History"
         >
@@ -249,10 +249,10 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
         }`}
       >
         <div className="p-3 border-b border-white/10 flex items-center justify-between">
-           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1">
+           <span className="text-[10px] font-bold uppercase tracking-widest text-amber-200/70 flex items-center gap-1">
              <Clock size={10} /> History
            </span>
-           <button onClick={() => setIsHistoryOpen(false)} className="text-slate-500 hover:text-white">
+           <button onClick={() => setIsHistoryOpen(false)} className="text-amber-200/70 hover:text-amber-50">
              <ChevronRight size={16} />
            </button>
         </div>
@@ -264,30 +264,30 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
                onClick={() => restoreSnapshot(idx)}
                className={`w-full group relative flex flex-col items-center gap-1 p-1 rounded-lg border transition-all ${
                  currentIndex === idx 
-                   ? 'bg-white/10 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.1)]' 
+                   ? 'bg-white/10 border-amber-600/50 shadow-[0_0_10px_rgba(217,119,6,0.1)]' 
                    : 'bg-black/20 border-transparent hover:border-white/10 hover:bg-white/5'
                }`}
              >
-               <div className="w-full aspect-video bg-[#0f172a] rounded overflow-hidden relative">
+               <div className="w-full aspect-video bg-[#1a0f05] rounded overflow-hidden relative">
                  <img src={state.thumbnail} alt={`Step ${idx}`} className="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity" />
                  {idx === 0 && (
-                   <span className="absolute top-0.5 left-0.5 text-[8px] bg-slate-800 text-slate-400 px-1 rounded">Start</span>
+                   <span className="absolute top-0.5 left-0.5 text-[8px] bg-amber-900/40 text-amber-200/70 px-1 rounded">Start</span>
                  )}
                </div>
-               <span className={`text-[9px] font-mono ${currentIndex === idx ? 'text-cyan-400' : 'text-slate-600'}`}>
+               <span className={`text-[9px] font-mono ${currentIndex === idx ? 'text-amber-400' : 'text-amber-200/50'}`}>
                  Step {idx + 1}
                </span>
                
                {/* Active Indicator */}
                {currentIndex === idx && (
-                 <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-8 bg-cyan-500 rounded-r-full shadow-[0_0_10px_rgba(34,211,238,0.8)]"></div>
+                 <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-8 bg-amber-600 rounded-r-full shadow-[0_0_10px_rgba(217,119,6,0.8)]"></div>
                )}
              </button>
            ))}
            {historyStack.length === 0 && (
              <div className="text-center p-4">
-               <RotateCcw size={16} className="mx-auto text-slate-700 mb-2" />
-               <p className="text-[10px] text-slate-600">Start drawing to create history</p>
+               <RotateCcw size={16} className="mx-auto text-amber-200/40 mb-2" />
+               <p className="text-[10px] text-amber-200/50">Start drawing to create history</p>
              </div>
            )}
         </div>
@@ -295,11 +295,11 @@ const DrawingCanvas = forwardRef<CanvasRef, DrawingCanvasProps>(({ tool, brushSi
       
       {isAnalyzing && (
         <div className="absolute inset-0 pointer-events-none z-10">
-           <div className="absolute inset-0 bg-[linear-gradient(rgba(34,211,238,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,0.1)_1px,transparent_1px)] bg-[size:40px_40px] opacity-50"></div>
-           <div className="absolute top-0 left-0 w-full h-1 bg-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.8)] animate-scan">
-              <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-t from-cyan-500/20 to-transparent"></div>
+           <div className="absolute inset-0 bg-[linear-gradient(rgba(217,119,6,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(217,119,6,0.1)_1px,transparent_1px)] bg-[size:40px_40px] opacity-50"></div>
+           <div className="absolute top-0 left-0 w-full h-1 bg-amber-600 shadow-[0_0_15px_rgba(217,119,6,0.8)] animate-scan">
+              <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-t from-amber-600/20 to-transparent"></div>
            </div>
-           <div className="absolute inset-0 border-2 border-cyan-500/30 animate-pulse rounded-2xl"></div>
+           <div className="absolute inset-0 border-2 border-amber-600/30 animate-pulse rounded-2xl"></div>
         </div>
       )}
     </div>

@@ -8,9 +8,10 @@ import BhashaLogo from './BhashaLogo';
 interface ChatInterfaceProps {
   contextText: string;
   initialSuggestions: string[];
+  onInteraction?: () => void;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSuggestions }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSuggestions, onInteraction }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -71,7 +72,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
       lastProcessedTextRef.current = '';
       setMessages([]);
     }
-  }, [contextText, persona]); 
+    // Only trigger on contextText change, not persona change to prevent freezing
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextText]); 
   
   // Speech Recognition Initialization
   useEffect(() => {
@@ -140,6 +143,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
     }
 
     if ((!text.trim() && !attachedFile) || isLoading) return;
+
+    // Trigger interaction callback to unlock all sections
+    onInteraction?.();
 
     let content = text;
     if (attachedFile) {
@@ -210,11 +216,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
         <div className="pointer-events-auto relative">
           <button 
             onClick={() => setShowPersonaMenu(!showPersonaMenu)}
-            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full px-4 py-2 text-sm text-slate-300 transition-all shadow-lg backdrop-blur-md"
+            className="flex items-center gap-2 bg-amber-900/20 hover:bg-amber-800/30 border border-amber-700/20 rounded-full px-4 py-2 text-sm text-amber-50 transition-all shadow-lg backdrop-blur-md"
           >
-            <span className={`text-cyan-400`}>{getPersonaIcon(persona)}</span>
+            <span className={`text-amber-400`}>{getPersonaIcon(persona)}</span>
             <span className="font-medium">{getPersonaLabel(persona)}</span>
-            <ChevronDown size={14} className={`text-slate-500 transition-transform ${showPersonaMenu ? 'rotate-180' : ''}`} />
+            <ChevronDown size={14} className={`text-amber-200/70 transition-transform ${showPersonaMenu ? 'rotate-180' : ''}`} />
           </button>
 
           {showPersonaMenu && (
@@ -229,8 +235,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
                      }}
                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                        persona === p 
-                         ? 'bg-cyan-500/10 text-cyan-400' 
-                         : 'text-slate-400 hover:text-white hover:bg-white/5'
+                         ? 'bg-amber-600/10 text-amber-400' 
+                         : 'text-amber-200/70 hover:text-amber-50 hover:bg-amber-800/20'
                      }`}
                    >
                      {getPersonaIcon(p)}
@@ -252,10 +258,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
                 {getPersonaIcon(persona)}
              </div>
              <div className="space-y-1">
-                <p className="text-slate-400 font-sans text-lg">
+                <p className="text-amber-200/80 font-sans text-lg">
                   {inputLang === 'bn-BD' ? "আমি আপনাকে কিভাবে সাহায্য করতে পারি?" : "How can I help you today?"}
                 </p>
-                <p className="text-slate-600 text-sm">
+                <p className="text-amber-200/60 text-sm">
                    Using {getPersonaLabel(persona)} Persona
                 </p>
              </div>
@@ -268,9 +274,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
             <div key={idx} className={`flex w-full animate-fade-in ${isUser ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] md:max-w-[75%] ${isUser ? '' : 'w-full'}`}>
                 {isUser ? (
-                   <div className="bg-[#2f2f2f] text-slate-200 px-5 py-3 rounded-2xl rounded-tr-sm text-[15px] leading-relaxed font-sans">
+                   <div className="bg-amber-900/30 text-amber-50 px-5 py-3 rounded-2xl rounded-tr-sm text-[15px] leading-relaxed font-sans">
                       {msg.content.includes('[FILE SENT:') && (
-                        <div className="flex items-center gap-2 text-xs text-cyan-400 mb-2 border-b border-white/10 pb-2">
+                        <div className="flex items-center gap-2 text-xs text-amber-400 mb-2 border-b border-amber-700/30 pb-2">
                            <Paperclip size={12} /> {msg.content.match(/\[FILE SENT: (.*?)\]/)?.[1]}
                         </div>
                       )}
@@ -278,13 +284,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
                    </div>
                 ) : (
                    <div className="group relative pr-8">
-                      <div className="font-sans text-[16px] md:text-[17px] leading-7 text-[#d1d5db] tracking-wide">
+                      <div className="font-sans text-[16px] md:text-[17px] leading-7 text-amber-50 tracking-wide">
                         {msg.content}
                       </div>
                       <div className="mt-2 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                          <button 
                             onClick={() => handleCopy(msg.content, idx)}
-                            className="text-slate-500 hover:text-white transition-colors p-1 rounded hover:bg-white/5"
+                            className="text-amber-200/60 hover:text-amber-50 transition-colors p-1 rounded hover:bg-amber-800/20"
                          >
                             {copiedId === idx ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                          </button>
@@ -298,24 +304,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
 
         {isLoading && (
           <div className="flex w-full justify-start animate-fade-in pl-1">
-             <span className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></span>
+             <span className="w-2 h-2 bg-amber-600 rounded-full animate-pulse"></span>
           </div>
         )}
 
         {/* Suggested Questions */}
         {suggestions.length > 0 && !isLoading && messages.length > 0 && (
            <div className="mt-6 px-2 animate-fade-in">
-              <p className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3 ml-1 flex items-center gap-2">
-                  <Sparkles size={12} className="text-cyan-400" /> Suggested Follow-ups
+              <p className="text-xs text-amber-200/70 font-medium uppercase tracking-widest mb-3 ml-1 flex items-center gap-2">
+                  <Sparkles size={12} className="text-amber-400" /> Suggested Follow-ups
               </p>
               <div className="flex flex-wrap gap-2">
                    {suggestions.map((s, i) => (
                        <button 
                           key={i}
                           onClick={() => handleSend(s)}
-                          className="text-left bg-white/5 hover:bg-white/10 border border-white/5 hover:border-cyan-500/30 px-4 py-2 rounded-xl text-sm text-slate-300 transition-all group flex items-center gap-2"
+                          className="text-left bg-amber-900/20 hover:bg-amber-800/30 border border-amber-700/20 hover:border-amber-600/40 px-4 py-2 rounded-xl text-sm text-amber-50 transition-all group flex items-center gap-2"
                        >
-                          <MessageSquare size={14} className="text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                          <MessageSquare size={14} className="text-amber-200/60 group-hover:text-amber-400 transition-colors" />
                           <span>{s}</span>
                        </button>
                    ))}
@@ -329,13 +335,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
       {/* Floating Input Area - Simplified Sonnet Style */}
       <div className="p-6 pt-2 flex justify-center bg-gradient-to-t from-[#0b0c0e] to-transparent z-20">
         <div className={`w-full max-w-3xl bg-[#1e1e1e] rounded-[28px] p-4 shadow-2xl border transition-all duration-300 relative group
-            ${isListening ? 'border-cyan-500/30 ring-1 ring-cyan-500/20' : 'border-white/5 ring-1 ring-white/5 focus-within:ring-cyan-500/30'}
+            ${isListening ? 'border-amber-600/30 ring-1 ring-amber-600/20' : 'border-white/5 ring-1 ring-white/5 focus-within:ring-amber-600/30'}
         `}>
             
             {/* Attached File Preview */}
             {attachedFile && (
-               <div className="mx-2 mb-2 inline-flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 text-xs text-slate-300">
-                  <FileText size={12} className="text-cyan-400" />
+               <div className="mx-2 mb-2 inline-flex items-center gap-2 bg-amber-900/20 px-3 py-1.5 rounded-lg border border-amber-700/20 text-xs text-amber-50">
+                  <FileText size={12} className="text-amber-400" />
                   {attachedFile.name}
                   <button onClick={() => setAttachedFile(null)} className="hover:text-red-400 ml-1"><X size={12} /></button>
                </div>
@@ -355,17 +361,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
                 }}
                 placeholder={getPlaceholder()}
                 disabled={isLoading}
-                className={`w-full bg-transparent text-slate-200 placeholder:text-slate-500 text-[16px] resize-none outline-none min-h-[56px] px-2 py-1 pr-12 transition-opacity ${isListening ? 'opacity-70' : 'opacity-100'}`}
+                className={`w-full bg-transparent text-amber-50 placeholder:text-amber-200/50 text-[16px] resize-none outline-none min-h-[56px] px-2 py-1 pr-12 transition-opacity ${isListening ? 'opacity-70' : 'opacity-100'}`}
                 rows={1}
               />
               
               {/* Waveform Visualizer Overlay */}
               {isListening && (
                  <div className="absolute right-2 top-2 flex items-center gap-1 h-6 pointer-events-none">
-                    <div className="w-1 bg-cyan-400 rounded-full animate-wave" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-1 bg-cyan-400 rounded-full animate-wave" style={{ animationDelay: '200ms' }}></div>
-                    <div className="w-1 bg-cyan-400 rounded-full animate-wave" style={{ animationDelay: '400ms' }}></div>
-                    <div className="w-1 bg-cyan-400 rounded-full animate-wave" style={{ animationDelay: '100ms' }}></div>
+                    <div className="w-1 bg-amber-600 rounded-full animate-wave" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-1 bg-amber-600 rounded-full animate-wave" style={{ animationDelay: '200ms' }}></div>
+                    <div className="w-1 bg-amber-600 rounded-full animate-wave" style={{ animationDelay: '400ms' }}></div>
+                    <div className="w-1 bg-amber-600 rounded-full animate-wave" style={{ animationDelay: '100ms' }}></div>
                  </div>
               )}
             </div>
@@ -377,7 +383,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileSelect} />
                      <button 
                         onClick={() => fileInputRef.current?.click()}
-                        className="p-2 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-colors"
+                        className="p-2 hover:bg-amber-800/20 rounded-xl text-amber-200/70 hover:text-amber-50 transition-colors"
                         title="Add Attachment"
                      >
                         <Plus size={20} />
@@ -391,8 +397,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
                       onClick={() => setInputLang(prev => prev === 'en-US' ? 'bn-BD' : 'en-US')}
                       className={`h-9 px-3 rounded-xl flex items-center gap-1.5 text-[10px] font-bold tracking-wider transition-all border
                         ${inputLang === 'bn-BD' 
-                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                           : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-white'
+                           ? 'bg-amber-600/10 text-amber-400 border-amber-600/20' 
+                           : 'bg-amber-900/20 text-amber-200/70 border-amber-700/20 hover:bg-amber-800/30 hover:text-amber-50'
                         }
                       `}
                       title="Switch Language"
@@ -406,13 +412,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
                       onClick={toggleListening}
                       className={`p-2 rounded-xl transition-all duration-300 relative overflow-hidden ${
                         isListening 
-                          ? 'text-cyan-300 bg-cyan-500/20' 
-                          : 'text-slate-400 hover:text-white hover:bg-white/10'
+                          ? 'text-amber-300 bg-amber-600/20' 
+                          : 'text-amber-200/70 hover:text-amber-50 hover:bg-amber-800/20'
                       }`}
                       title={isListening ? "Stop Listening" : "Voice Input"}
                     >
                       {isListening && (
-                        <span className="absolute inset-0 bg-cyan-400/20 animate-pulse"></span>
+                        <span className="absolute inset-0 bg-amber-600/20 animate-pulse"></span>
                       )}
                       {isListening ? <AudioLines size={20} /> : <Mic size={20} />}
                     </button>
@@ -424,8 +430,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ contextText, initialSugge
                         disabled={!input.trim() && !attachedFile}
                         className={`p-2.5 rounded-xl transition-all duration-300 ${
                           input.trim() || attachedFile 
-                            ? 'bg-cyan-600 text-white shadow-lg hover:bg-cyan-500' 
-                            : 'bg-white/5 text-slate-600 cursor-not-allowed'
+                            ? 'bg-amber-700 text-amber-50 shadow-lg hover:bg-amber-600' 
+                            : 'bg-amber-900/20 text-amber-200/40 cursor-not-allowed'
                         }`}
                     >
                         <ArrowUp size={20} strokeWidth={2.5} />

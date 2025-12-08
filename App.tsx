@@ -140,7 +140,7 @@ const App: React.FC = () => {
     const active = isSectionActive(section);
     return `transition-all duration-700 ease-in-out transform border rounded-3xl overflow-hidden relative shadow-2xl h-[650px]
       ${active 
-        ? 'opacity-100 scale-100 shadow-[0_0_50px_-10px_rgba(6,182,212,0.15)] border-cyan-500/30 grayscale-0 z-10' 
+        ? 'opacity-100 scale-100 shadow-[0_0_50px_-10px_rgba(139,69,19,0.15)] border-amber-700/30 grayscale-0 z-10' 
         : 'opacity-40 scale-[0.98] shadow-none border-white/5 grayscale pointer-events-none'
       }`;
   };
@@ -149,7 +149,7 @@ const App: React.FC = () => {
   const getHeadingText = (section: 'INPUT' | 'ANALYSIS' | 'CHAT') => {
     const active = isSectionActive(section);
     const baseText = {
-        'INPUT': '🔵 Input Section',
+        'INPUT': '🟤 Input Section',
         'ANALYSIS': '🟡 Analysis Result',
         'CHAT': '🟢 Chatbot Section'
     }[section];
@@ -159,8 +159,8 @@ const App: React.FC = () => {
             {baseText}
             <span className={`text-xs uppercase tracking-widest font-bold px-2 py-0.5 rounded-md border ${
                 active 
-                ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
-                : 'text-slate-500 bg-slate-800/50 border-slate-700'
+                ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' 
+                : 'text-amber-100/60 bg-amber-950/30 border-amber-900/30'
             }`}>
                 {active ? '(active)' : '(inactive)'}
             </span>
@@ -169,7 +169,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen text-slate-200 font-sans selection:bg-cyan-500/30 pb-32">
+    <div className="min-h-screen text-amber-50 font-sans selection:bg-amber-600/30 pb-32">
       
       {/* Hidden Input */}
       <input 
@@ -182,13 +182,13 @@ const App: React.FC = () => {
 
       {/* Header */}
       <div className="fixed top-6 left-0 right-0 z-50 flex justify-center pointer-events-none">
-        <header className="pointer-events-auto bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-full px-6 py-3 shadow-2xl flex items-center gap-8 animate-slide-up">
+        <header className="pointer-events-auto bg-amber-950/40 backdrop-blur-xl border border-amber-800/20 rounded-full px-6 py-3 shadow-2xl flex items-center gap-8 animate-slide-up">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-8 h-8">
-              <BhashaLogo className="w-full h-full text-cyan-400" />
+              <BhashaLogo className="w-full h-full text-amber-500" />
             </div>
             <h1 className="font-bold text-white text-lg tracking-tight flex items-center">
-              BHASHA<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-violet-500">LLM</span>
+              BHASHA<span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-amber-800">LLM</span>
             </h1>
           </div>
         </header>
@@ -199,15 +199,15 @@ const App: React.FC = () => {
         
         {/* ROW 1: INPUT SECTION (FULL WIDTH) */}
         <div ref={inputSectionRef} className="col-span-1 lg:col-span-2">
-           <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 transition-colors duration-500 ${isSectionActive('INPUT') ? 'text-cyan-400' : 'text-slate-600'}`}>
+           <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 transition-colors duration-500 ${isSectionActive('INPUT') ? 'text-amber-400' : 'text-amber-200/50'}`}>
               {getHeadingText('INPUT')}
            </h2>
            <div className={getSectionStyles('INPUT')}>
                 <div className="glass-panel overflow-hidden flex flex-col h-full">
                 
                 {/* Tab Navigation */}
-                <div className="p-2 bg-black/20 backdrop-blur-md">
-                    <div className="flex bg-white/5 rounded-2xl p-1 relative">
+                <div className="p-2 bg-amber-900/20 backdrop-blur-md">
+                    <div className="flex bg-amber-800/20 rounded-2xl p-1 relative">
                     {[
                         { id: InputMode.DRAW, icon: PenTool, label: 'Sketch' },
                         { id: InputMode.UPLOAD, icon: ImageIcon, label: 'Upload' },
@@ -222,11 +222,11 @@ const App: React.FC = () => {
                         }}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-xl transition-all relative z-10 ${
                             inputMode === tab.id 
-                            ? 'text-white shadow-lg bg-slate-800/80 border border-white/10' 
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                            ? 'text-amber-50 shadow-lg bg-amber-700/60 border border-amber-600/30' 
+                            : 'text-amber-200/70 hover:text-amber-50 hover:bg-amber-800/30'
                         }`}
                         >
-                        <tab.icon size={16} className={inputMode === tab.id ? 'text-cyan-400' : ''} />
+                        <tab.icon size={16} className={inputMode === tab.id ? 'text-amber-300' : 'text-amber-200/60'} />
                         {tab.label}
                         </button>
                     ))}
@@ -234,7 +234,7 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Input Content */}
-                <div className="flex-1 relative bg-[#0f172a]/40 overflow-hidden">
+                <div className="flex-1 relative bg-[#1a0f05]/40 overflow-hidden">
                     {inputMode === InputMode.DRAW && (
                     <div className="h-full flex flex-col">
                         {/* Toolbar */}
@@ -242,39 +242,39 @@ const App: React.FC = () => {
                         <div className="glass-card rounded-xl p-1 pointer-events-auto flex gap-1 shadow-lg">
                             <button 
                             onClick={() => setTool('pen')}
-                            className={`p-2.5 rounded-lg transition-all ${tool === 'pen' ? 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/50' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            className={`p-2.5 rounded-lg transition-all ${tool === 'pen' ? 'bg-amber-600/20 text-amber-300 ring-1 ring-amber-600/50' : 'text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20'}`}
                             >
                             <PenTool size={18} />
                             </button>
                             <button 
                             onClick={() => setTool('eraser')}
-                            className={`p-2.5 rounded-lg transition-all ${tool === 'eraser' ? 'bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/50' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            className={`p-2.5 rounded-lg transition-all ${tool === 'eraser' ? 'bg-amber-800/20 text-amber-300 ring-1 ring-amber-800/50' : 'text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20'}`}
                             >
                             <Eraser size={18} />
                             </button>
                         </div>
 
                         <div className="glass-card rounded-xl px-4 py-2 pointer-events-auto flex items-center gap-3 shadow-lg">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Size</span>
+                            <span className="text-[10px] text-amber-200/80 font-bold uppercase tracking-wider">Size</span>
                             <input 
                             type="range" 
                             min="2" 
                             max="20" 
                             value={brushSize} 
                             onChange={(e) => setBrushSize(Number(e.target.value))}
-                            className="w-24 accent-cyan-500 h-1 bg-slate-700 rounded-full appearance-none cursor-pointer"
+                            className="w-24 accent-amber-600 h-1 bg-amber-900/40 rounded-full appearance-none cursor-pointer"
                             />
                         </div>
 
                         <div className="glass-card rounded-xl p-1 pointer-events-auto flex gap-1 shadow-lg">
-                            <button onClick={onUndoCanvas} className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg" title="Undo">
+                            <button onClick={onUndoCanvas} className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" title="Undo">
                             <Undo size={18} />
                             </button>
-                            <button onClick={onRedoCanvas} className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg" title="Redo">
+                            <button onClick={onRedoCanvas} className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" title="Redo">
                             <Redo size={18} />
                             </button>
-                            <div className="w-px h-6 bg-white/10 my-auto mx-1"></div>
-                            <button onClick={onDownloadCanvas} className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg" title="Download">
+                            <div className="w-px h-6 bg-amber-700/30 my-auto mx-1"></div>
+                            <button onClick={onDownloadCanvas} className="p-2.5 text-amber-200/60 hover:text-amber-50 hover:bg-amber-800/20 rounded-lg" title="Download">
                             <Download size={18} />
                             </button>
                         </div>
@@ -295,14 +295,14 @@ const App: React.FC = () => {
                         <div className="p-4 pt-0 flex gap-4">
                         <button 
                             onClick={onClearCanvas}
-                            className="px-5 py-3 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl text-sm font-medium transition-colors border border-white/5 hover:border-red-500/20"
+                            className="px-5 py-3 text-amber-200/70 hover:text-red-400 hover:bg-red-500/10 rounded-xl text-sm font-medium transition-colors border border-amber-800/20 hover:border-red-500/20"
                         >
                             Clear Board
                         </button>
                         <button 
                             onClick={onCanvasSubmit}
                             disabled={isLoading}
-                            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-600 to-violet-600 hover:from-cyan-500 hover:to-violet-500 text-white rounded-xl text-sm font-bold tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-900/20 active:scale-[0.98] border border-white/10"
+                            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-white rounded-xl text-sm font-bold tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-900/20 active:scale-[0.98] border border-white/10"
                         >
                             {isLoading ? (
                             <span className="flex items-center gap-2"><Sparkles className="animate-spin w-4 h-4" /> Processing...</span>
@@ -333,16 +333,16 @@ const App: React.FC = () => {
                             </button>
                         </div>
                         ) : (
-                        <div className="text-center w-full h-full border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all group">
-                            <div className="w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-full flex items-center justify-center mb-6 border border-white/10 text-slate-400 group-hover:text-cyan-400 group-hover:scale-110 transition-all shadow-xl">
+                        <div className="text-center w-full h-full border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center hover:border-amber-600/50 hover:bg-amber-600/5 transition-all group">
+                            <div className="w-20 h-20 bg-gradient-to-br from-amber-800 to-amber-900 rounded-full flex items-center justify-center mb-6 border border-amber-700/30 text-amber-200/70 group-hover:text-amber-400 group-hover:scale-110 transition-all shadow-xl">
                             <Upload size={32} />
                             </div>
-                            <h3 className="text-xl font-bold text-white mb-2">Upload Image</h3>
-                            <p className="text-slate-500 text-sm mb-8">Supports PNG, JPG, or WEBP</p>
+                            <h3 className="text-xl font-bold text-amber-50 mb-2">Upload Image</h3>
+                            <p className="text-amber-200/80 text-sm mb-8">Supports PNG, JPG, or WEBP</p>
                             
                             <button 
                             onClick={() => fileInputRef.current?.click()}
-                            className="px-8 py-3 bg-white text-slate-900 hover:bg-cyan-50 rounded-xl font-bold transition-colors shadow-lg shadow-white/10"
+                            className="px-8 py-3 bg-white text-amber-950 hover:bg-amber-50 rounded-xl font-bold transition-colors shadow-lg shadow-white/10"
                             >
                             Select File
                             </button>
@@ -363,7 +363,7 @@ const App: React.FC = () => {
 
         {/* ROW 2 LEFT: CHATBOT SECTION */}
         <div ref={chatSectionRef} className="col-span-1">
-            <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 transition-colors duration-500 ${isSectionActive('CHAT') ? 'text-emerald-400' : 'text-slate-600'}`}>
+            <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 transition-colors duration-500 ${isSectionActive('CHAT') ? 'text-amber-400' : 'text-amber-200/50'}`}>
                {getHeadingText('CHAT')}
             </h2>
             <div className={getSectionStyles('CHAT')}>
@@ -379,7 +379,7 @@ const App: React.FC = () => {
 
         {/* ROW 2 RIGHT: ANALYSIS SECTION */}
         <div ref={analysisSectionRef} className="col-span-1">
-            <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 transition-colors duration-500 ${isSectionActive('ANALYSIS') ? 'text-amber-400' : 'text-slate-600'}`}>
+            <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 transition-colors duration-500 ${isSectionActive('ANALYSIS') ? 'text-amber-500' : 'text-amber-200/50'}`}>
                {getHeadingText('ANALYSIS')}
             </h2>
             <div className={getSectionStyles('ANALYSIS')}>
@@ -387,13 +387,13 @@ const App: React.FC = () => {
                     {/* Analysis Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-black/20">
                         <div className="flex items-center gap-3">
-                            <h3 className="font-bold text-slate-200 flex items-center gap-2 text-sm tracking-wide">
-                            <BhashaLogo className="text-cyan-400 w-5 h-5" />
+                            <h3 className="font-bold text-amber-50 flex items-center gap-2 text-sm tracking-wide">
+                            <BhashaLogo className="text-amber-500 w-5 h-5" />
                             ANALYSIS RESULTS
                             </h3>
                         </div>
                         {result && (
-                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)] animate-fade-in">
+                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 shadow-[0_0_10px_rgba(217,119,6,0.2)] animate-fade-in">
                             <CheckCircle2 size={10} />
                             COMPLETE
                         </span>
