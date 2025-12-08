@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, PenTool, Camera as CameraIcon, Trash2, Send, Eraser, Undo, Redo, Download, Sparkles, Image as ImageIcon, CheckCircle2, MessageSquare, ArrowRight, ArrowLeft, ChevronDown } from 'lucide-react';
+import { Upload, PenTool, Camera as CameraIcon, Trash2, Send, Eraser, Undo, Redo, Download, Sparkles, Image as ImageIcon, CheckCircle2, MessageSquare, ArrowRight, ArrowLeft, ChevronDown, FileText } from 'lucide-react';
 import DrawingCanvas from './components/DrawingCanvas';
 import CameraCapture from './components/CameraCapture';
 import ResultsPanel from './components/ResultsPanel';
 import ChatInterface from './components/ChatInterface';
 import BhashaLogo from './components/BhashaLogo';
 import { analyzeHandwriting } from './services/geminiService';
+import { processPDF, isPDFFile, PDFPageImage } from './services/pdfService';
 import { RecognitionResult, InputMode, CanvasRef } from './types';
 
 // New State to handle the 4 phases: Input -> Analysis -> Chat -> All Active
@@ -145,7 +146,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
     e.stopPropagation();
     const file = e.target.files?.[0];
@@ -156,20 +157,94 @@ const App: React.FC = () => {
         fileType: file.type,
         source: "FILE_UPLOAD"
       });
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        console.log("handleFileUpload: File read complete", {
-          resultLength: result?.length || 0,
-          resultType: result?.substring(0, 30)
-        });
-        setUploadedImage(result);
-        // Don't automatically analyze - let user preview first
-      };
-      reader.onerror = (error) => {
-        console.error("handleFileUpload: FileReader error", error);
-      };
-      reader.readAsDataURL(file);
+
+      if (isPDFFile(file)) {
+        // Handle PDF files
+        console.log("handleFileUpload: Processing PDF file");
+        try {
+          setIsLoading(true);
+          const pdfPages = await processPDF(file);
+
+          if (pdfPages.length === 0) {
+            throw new Error("No pages found in PDF");
+          }
+
+          console.log(`handleFileUpload: PDF processed with ${pdfPages.length} pages`);
+
+          // For now, use the first page as preview and process all pages
+          setUploadedImage(pdfPages[0].dataUrl);
+
+          // Process all pages sequentially
+          const allRecognizedTexts: string[] = [];
+
+          for (let i = 0; i < pdfPages.length; i++) {
+            const page = pdfPages[i];
+            console.log(`handleFileUpload: Analyzing page ${page.pageNumber}/${pdfPages.length}`);
+
+            try {
+              const result = await analyzeHandwriting(page.dataUrl);
+              if (result.recognizedText && result.recognizedText.trim()) {
+                allRecognizedTexts.push(`[Page ${page.pageNumber}] ${result.recognizedText.trim()}`);
+              }
+            } catch (pageError) {
+              console.error(`handleFileUpload: Error processing page ${page.pageNumber}`, pageError);
+              allRecognizedTexts.push(`[Page ${page.pageNumber}] Error processing page`);
+            }
+          }
+
+          // Combine all recognized texts
+          const combinedText = allRecognizedTexts.join('\n\n');
+
+          // Create a combined result
+          const combinedResult: RecognitionResult = {
+            recognizedText: combinedText,
+            confidence: 0.8, // Average confidence
+            isQuestion: false,
+            bhashaInsights: [], // We'll generate insights for the combined text
+            suggestedQuestions: [],
+            candidates: [],
+            processingTimeMs: 0,
+          };
+
+          console.log("handleFileUpload: PDF analysis complete", {
+            totalPages: pdfPages.length,
+            combinedTextLength: combinedText.length
+          });
+
+          setResult(combinedResult);
+          setStep('CHAT');
+
+        } catch (error) {
+          console.error("handleFileUpload: PDF processing error", error);
+          setResult({
+            recognizedText: `Error processing PDF: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            confidence: 0,
+            isQuestion: false,
+            bhashaInsights: [],
+            suggestedQuestions: [],
+            candidates: [],
+            processingTimeMs: 0,
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        // Handle image files (existing logic)
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          console.log("handleFileUpload: Image file read complete", {
+            resultLength: result?.length || 0,
+            resultType: result?.substring(0, 30)
+          });
+          setUploadedImage(result);
+          // Don't automatically analyze - let user preview first
+        };
+        reader.onerror = (error) => {
+          console.error("handleFileUpload: FileReader error", error);
+        };
+        reader.readAsDataURL(file);
+      }
     } else {
       console.warn("handleFileUpload: No file selected");
     }
@@ -265,10 +340,10 @@ const App: React.FC = () => {
     <div className="min-h-screen text-amber-50 font-sans selection:bg-amber-600/30 pb-32">
       
       {/* Hidden Input */}
-      <input 
-        type="file" 
+      <input
+        type="file"
         ref={fileInputRef}
-        accept="image/*"
+        accept="image/*,.pdf"
         onChange={handleFileUpload}
         className="hidden"
       />
@@ -660,6 +735,15 @@ const App: React.FC = () => {
                                 >
                                 <Trash2 size={20} />
                                 </button>
+                                {isLoading && (
+                                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
+                                    <div className="text-center">
+                                        <Sparkles className="animate-spin w-8 h-8 text-amber-400 mx-auto mb-2" />
+                                        <p className="text-amber-200 text-sm font-medium">Processing PDF pages...</p>
+                                        <p className="text-amber-300/70 text-xs mt-1">This may take a moment for large files</p>
+                                    </div>
+                                </div>
+                                )}
                             </div>
                             <div className="flex gap-4">
                                 <button
@@ -671,6 +755,7 @@ const App: React.FC = () => {
                                     if (fileInputRef.current) fileInputRef.current.value = '';
                                 }}
                                 className="px-5 py-3 text-amber-200/70 hover:text-red-400 hover:bg-red-500/10 rounded-xl text-sm font-medium transition-colors border border-amber-800/20 hover:border-red-500/20"
+                                disabled={isLoading}
                                 >
                                 Clear Image
                                 </button>
@@ -702,8 +787,8 @@ const App: React.FC = () => {
                             <div className="w-20 h-20 bg-gradient-to-br from-amber-800 to-amber-900 rounded-full flex items-center justify-center mb-6 border border-amber-700/30 text-amber-200/70 group-hover:text-amber-400 group-hover:scale-110 transition-all shadow-xl">
                             <Upload size={32} />
                             </div>
-                            <h3 className="text-xl font-bold text-amber-50 mb-2">Upload Image</h3>
-                            <p className="text-amber-200/80 text-sm mb-8">Supports PNG, JPG, or WEBP</p>
+                            <h3 className="text-xl font-bold text-amber-50 mb-2">Upload Image or PDF</h3>
+                            <p className="text-amber-200/80 text-sm mb-8">Supports PNG, JPG, WEBP, or PDF files</p>
                             
                             <button 
                             type="button"
