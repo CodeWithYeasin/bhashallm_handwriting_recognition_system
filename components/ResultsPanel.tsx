@@ -163,17 +163,21 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ result, isLoading }) => {
                       <ScanLine size={12} /> Recognized Content
                     </span>
                     <button 
-                      onClick={() => handleCopy(result.recognizedText, 'main')}
+                      onClick={() => {
+                        if (result.recognizedText) {
+                          handleCopy(result.recognizedText, 'main');
+                        }
+                      }}
                       className="text-amber-200/70 hover:text-amber-50 transition-colors"
-                      title="Copy text"
+                      title="Copy full text"
                     >
                       {copiedTextId === 'main' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                     </button>
                   </div>
                   
-                  <div className="mb-5 relative">
+                  <div className="mb-5 relative max-h-96 overflow-y-auto custom-scrollbar">
                      <Quote className="absolute -top-2 -left-3 text-white/5 transform -scale-x-100" size={40} />
-                     <h2 className="text-3xl font-serif text-amber-50 leading-tight tracking-wide drop-shadow-lg break-words pl-2">
+                     <h2 className="text-base md:text-xl font-serif text-amber-50 leading-relaxed tracking-wide drop-shadow-lg break-words pl-2 select-text whitespace-pre-wrap">
                       "{result.recognizedText}"
                      </h2>
                   </div>

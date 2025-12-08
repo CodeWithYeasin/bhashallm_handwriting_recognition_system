@@ -24,7 +24,7 @@ const recognitionSchema: Schema = {
         properties: {
           poet: { type: Type.STRING, description: "Name of the poet (Rabindranath Tagore, Kazi Nazrul Islam, or Jasim Uddin)" },
           mood: { type: Type.STRING, description: "The emotional tone of the response (e.g., Philosophical, Rebellious, Folk)" },
-          content: { type: Type.STRING, description: "The creative response or answer in the style of the poet. MUST match the language of the input text." },
+          content: { type: Type.STRING, description: "The creative response or answer in the style of the poet. MUST match the language of the input text. Do NOT use em dashes (—) or any dashes at the beginning or within the content. Write directly without dash prefixes." },
         },
         required: ["poet", "mood", "content"]
       },
@@ -134,6 +134,7 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
     - Ensure the "content" for each poet is distinct and captures their unique voice (only for Bengali inputs).
     - **CRITICAL**: For long texts, generate FULL and COMPREHENSIVE poet responses. Do not truncate or shorten responses.
     - **REQUIRED**: The bhashaInsights array MUST contain exactly 3 items for valid Bengali text, regardless of length.
+    - **FORMATTING RULE**: Do NOT use em dashes (—) or any dashes at the beginning or within the poetic content. Write the content directly without any dash prefixes or separators.
     `;
 
     console.log("analyzeHandwriting: Sending request to Gemini API...", {
@@ -164,7 +165,8 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
 1. Only recognize Bengali text. If the text contains any non-Bengali characters (English, numbers, symbols), return empty recognizedText and empty arrays for bhashaInsights and suggestedQuestions. 
 2. Only provide poet responses if the text is 100% Bengali.
 3. **CRITICAL FOR LONG TEXTS**: If the recognized text is long, you MUST still generate complete poet responses. Long texts require MORE detailed analysis, not less. Always return exactly 3 poet insights in bhashaInsights array for valid Bengali text, regardless of text length.
-4. Ensure all poet responses are comprehensive and address the full meaning of the text, especially for longer passages.`,
+4. Ensure all poet responses are comprehensive and address the full meaning of the text, especially for longer passages.
+5. **FORMATTING**: Do NOT use em dashes (—) or any dashes (—, -, –) in the poetic content. Write the content directly without any dash prefixes, separators, or quotation marks.`,
             },
           ],
         },
@@ -246,8 +248,21 @@ export const analyzeHandwriting = async (base64Image: string): Promise<Recogniti
     
     // Return more detailed error information
     const errorMessage = error?.message || "Unknown error";
+    
+    // Check for specific error types
+    let errorText = "Error: Analysis failed";
+    if (errorMessage.includes("API Key")) {
+      errorText = "API Key Error: Check .env file";
+    } else if (errorMessage.includes("token") || errorMessage.includes("length") || errorMessage.includes("limit")) {
+      errorText = "Error: Text too long or exceeded limits. Please try with a shorter text.";
+    } else if (errorMessage.includes("quota") || errorMessage.includes("rate limit")) {
+      errorText = "Error: Server quota exceeded. Please try again later.";
+    } else {
+      errorText = `Error: ${errorMessage.substring(0, 100)}`;
+    }
+    
     return {
-      recognizedText: errorMessage.includes("API Key") ? "API Key Error: Check .env file" : `Error: ${errorMessage}`,
+      recognizedText: errorText,
       confidence: 0,
       isQuestion: false,
       bhashaInsights: [],
@@ -268,60 +283,51 @@ export const chatWithBhasha = async (history: ChatMessage[], contextText: string
       throw new Error("API Key not found. Please set GEMINI_API_KEY in your .env file");
     }
 
-    // Get the last user message
-    const lastUserMessage = history.filter(msg => msg.role === 'user').pop()?.content || "";
-    const isLastMessageBengali = lastUserMessage && /^[\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]+$/.test(lastUserMessage.trim());
-    
-    // Validate contextText if it exists (it may be empty for general questions)
-    const isContextBengali = !contextText || /^[\u0980-\u09FF\u09E6-\u09EF\s\u200C\u200D,\.;:!?\-'"()]+$/.test(contextText.trim());
-    
-    // If user message is not Bengali (and not empty), reject the request
-    // Allow responses even if contextText is empty or not Bengali, as long as the user message is Bengali
-    if (lastUserMessage.trim() && !isLastMessageBengali) {
-      return "দুঃখিত, এই সিস্টেম শুধুমাত্র বাংলা পাঠ্য গ্রহণ করে। অনুগ্রহ করে বাংলায় আপনার প্রশ্ন বা মন্তব্য লিখুন। (Sorry, this system only accepts Bengali text. Please write your question or comment in Bengali.)";
-    }
-    
-    // If contextText exists but is not Bengali, warn but still allow if user message is Bengali
-    if (contextText && !isContextBengali && isLastMessageBengali) {
-      console.warn("Context text is not Bengali, but proceeding with Bengali user message");
-    }
+    // Chatbot accepts any language - no language restrictions
+    // Note: contextText (recognized text) will always be Bengali since it comes from Bengali-only handwriting analysis
 
     const ai = new GoogleGenAI({ apiKey });
 
     // Check if we have context text
     const hasContextText = contextText && contextText.trim();
 
-    // Format history for the prompt
-    const conversationHistory = history.map(msg => 
-      `${msg.role === 'user' ? 'User' : 'Bhasha'}: ${msg.content}`
-    ).join('\n');
+    // Format history for the prompt - limit to last 10 messages to avoid token limits
+    // Also truncate very long messages in history to prevent token overflow
+    const recentHistory = history.slice(-10);
+    const conversationHistory = recentHistory.map(msg => {
+      const content = msg.content.length > 500 
+        ? msg.content.substring(0, 500) + '...' 
+        : msg.content;
+      return `${msg.role === 'user' ? 'User' : 'Bhasha'}: ${content}`;
+    }).join('\n');
 
     // Persona Configuration
     const personaConfig = {
       tutor: {
         role: "Bengali Language Teacher",
         tone: "Educational, objective, and friendly. Act as a modern AI tutor.",
-        instruction: `Explain the text clearly, grammatically, and conceptually. ${hasContextText ? `You MUST provide a comprehensive literary review of the recognized text, including: meaning analysis, grammatical structure, themes, and educational insights. This is MANDATORY when recognized text is provided.` : ''} If asked about poets, explain objectively. ONLY respond to Bengali text.`
+        instruction: `Explain the text clearly, grammatically, and conceptually. ${hasContextText ? `You MUST provide a comprehensive literary review of the recognized Bengali text, including: meaning analysis, grammatical structure, themes, and educational insights. This is MANDATORY when recognized text is provided.` : ''} If asked about poets, explain objectively. Respond in the same language the user uses.`
       },
       analyst: {
         role: "Formal Document Analyst",
         tone: "Professional, precise, concise, and data-driven. No fluff.",
-        instruction: "Focus on the structural accuracy, linguistics, and literal meaning of the text. Analyze the handwriting style formally. ONLY respond to Bengali text."
+        instruction: "Focus on the structural accuracy, linguistics, and literal meaning of the text. Analyze the handwriting style formally. Respond in the same language the user uses."
       },
       muse: {
         role: "Creative Literary Muse",
         tone: "Imaginative, inspiring, and slightly metaphorical but easy to understand.",
-        instruction: "Engage with the artistic soul of the text. Encourage the user to see the deeper beauty and emotion. You can be slightly poetic but remain helpful. ONLY respond to Bengali text."
+        instruction: "Engage with the artistic soul of the text. Encourage the user to see the deeper beauty and emotion. You can be slightly poetic but remain helpful. Respond in the same language the user uses."
       }
    };
 
    const currentPersona = personaConfig[persona];
 
-    // Build context part of prompt
+    // Build context part of prompt - include full text but reference it once
+    // Note: contextText is always Bengali (from handwriting analysis), but user can ask about it in any language
     const contextPart = hasContextText
-      ? `**RECOGNIZED TEXT FROM IMAGE**: "${contextText}"
+      ? `**RECOGNIZED TEXT FROM IMAGE (Bengali)**: "${contextText}"
 
-This is the Bengali text that was recognized from the user's uploaded image. You MUST analyze this text and provide insights about it.`
+This is the Bengali text that was recognized from the user's uploaded image. The user may ask questions about this text in any language. You MUST analyze this text and provide insights about it.`
       : "Context: The user is asking a general question. There is no specific recognized text from an image at this moment.";
     
     const prompt = `
@@ -332,29 +338,55 @@ This is the Bengali text that was recognized from the user's uploaded image. You
     
     You are BhashaLLM, a ${currentPersona.role}.
     
-    **CRITICAL RESTRICTION**: This system ONLY processes Bengali text. If the user writes in any language other than Bengali (English, Hindi, etc.), you MUST respond with: "দুঃখিত, এই সিস্টেম শুধুমাত্র বাংলা পাঠ্য গ্রহণ করে। অনুগ্রহ করে বাংলায় আপনার প্রশ্ন বা মন্তব্য লিখুন।"
-    
     **Your Role:**
     1. ${currentPersona.instruction}
     2. **Tone**: ${currentPersona.tone}
     3. DO NOT use the "3 Poets" format in this chat. That is for the analysis panel only. Be conversational.
-    4. **ALWAYS respond in Bengali**. If the user's message is in Bengali, provide a helpful response. If not Bengali, use the rejection message above.
-    5. **CRITICAL - LITERARY REVIEW**: ${hasContextText ? `You MUST provide a literary review and analysis of the recognized text: "${contextText}". Analyze its meaning, themes, grammar, and provide educational insights. This is MANDATORY when recognized text is present.` : 'If there\'s no context text, you can still help with general Bengali language questions or explanations.'}
+    4. **RESPOND IN THE USER'S LANGUAGE**: Always respond in the same language the user uses. If they write in English, respond in English. If they write in Bengali, respond in Bengali. If they write in Hindi, respond in Hindi, etc.
+    5. **CRITICAL - LITERARY REVIEW**: ${hasContextText ? `You MUST provide a literary review and analysis of the recognized Bengali text shown above. Analyze its meaning, themes, grammar, and provide educational insights. This is MANDATORY when recognized text is present. Respond in the user's language.` : 'You can help with general questions about Bengali language, literature, or any other topic. Respond in the user\'s language.'}
     6. **IMPORTANT**: You MUST always provide a response. Never leave the user without an answer.
     
-    **Language Rules (STRICT):**
-    - You MUST respond ONLY in Bengali.
-    - If the user writes in any language other than Bengali, reject it with the message above.
-    - All your responses must be in Bengali, regardless of what the user writes.
-    - **MANDATORY**: Always provide a meaningful response when the user writes in Bengali, even if there's no context text.
-    ${hasContextText ? `- **MANDATORY**: You MUST analyze and provide insights about the recognized text: "${contextText}"` : ''}
+    **Language Rules:**
+    - Always respond in the same language the user uses.
+    - If the user writes in English, respond in English.
+    - If the user writes in Bengali, respond in Bengali.
+    - If the user writes in any other language, respond in that language.
+    - **MANDATORY**: Always provide a meaningful response, regardless of the language used.
+    ${hasContextText ? `- **MANDATORY**: You MUST analyze and provide insights about the recognized Bengali text shown in the context above. Respond in the user's language.` : ''}
     
-    Keep the response ${hasContextText ? 'comprehensive (150-200 words)' : 'concise (under 100 words)'} and in Bengali. Be helpful and engaging.
+    Keep the response ${hasContextText ? 'comprehensive (150-200 words)' : 'concise (under 100 words)'} and in the user's language. Be helpful and engaging.
     `;
+
+    // Check prompt length and warn if very long
+    if (prompt.length > 30000) {
+      console.warn("Prompt is very long, may exceed token limits:", prompt.length);
+    }
+
+    console.log("chatWithBhasha: Sending request to Gemini API...", {
+      model: "gemini-2.5-flash",
+      promptLength: prompt.length,
+      hasApiKey: !!apiKey,
+      historyLength: history.length
+    });
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: { text: prompt },
+      config: {
+        maxOutputTokens: 2048,
+      },
+      contents: {
+        parts: [
+          {
+            text: prompt,
+          },
+        ],
+      },
+    });
+
+    console.log("chatWithBhasha: Gemini API response received", {
+      hasResponse: !!response,
+      hasText: !!response.text,
+      responseLength: response.text?.length || 0
     });
 
     const responseText = response.text?.trim();
@@ -367,8 +399,29 @@ This is the Bengali text that was recognized from the user's uploaded image. You
     
     return responseText;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Chat Error:", error);
-    return "I am having trouble connecting. Please try again.";
+    console.error("Chat Error details:", {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code,
+      status: error?.status,
+      stack: error?.stack?.substring(0, 200)
+    });
+    
+    // Check for specific error types
+    if (error?.message?.includes('token') || error?.message?.includes('length') || error?.message?.includes('limit')) {
+      return "দুঃখিত, পাঠ্যটি খুব দীর্ঘ। অনুগ্রহ করে ছোট করে আবার চেষ্টা করুন। (Sorry, the text is too long. Please try with a shorter text.)";
+    }
+    
+    if (error?.message?.includes('quota') || error?.message?.includes('rate limit')) {
+      return "দুঃখিত, সার্ভার ব্যস্ত। অনুগ্রহ করে কিছুক্ষণ পরে আবার চেষ্টা করুন। (Sorry, server is busy. Please try again later.)";
+    }
+    
+    if (error?.message?.includes('API Key') || error?.message?.includes('api key')) {
+      return "API Key Error: Check .env file and ensure GEMINI_API_KEY is set correctly.";
+    }
+    
+    return "দুঃখিত, একটি ত্রুটি হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন। (Sorry, an error occurred. Please try again.)";
   }
 };
